@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador 3D/2D - Sistema de Transporte de Equipaje (Equipo 01)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --panel-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --orange: #f59e0b;
+      --green: #10b981;
+      --pink: #ec4899;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body { background: var(--bg-dark); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+    
+    /* Sidebar de controles */
+    #sidebar {
+      width: 360px;
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      overflow-y: auto;
+      z-index: 10;
+    }
+    h1 { font-size: 1.05rem; color: var(--accent); margin-bottom: 4px; }
+    .subtitle { font-size: 0.78rem; color: var(--muted); margin-bottom: 14px; }
+    .section-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin: 12px 0 8px 0;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 4px;
+    }
+    .control-group { margin-bottom: 10px; }
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      margin-bottom: 3px;
+    }
+    .control-label span.val { color: var(--accent); font-weight: 600; font-family: monospace; }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .preset-btns, .action-btns, .view-btns {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .action-btns { grid-template-columns: 1fr 1fr; margin-top: 6px; }
+    button {
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 600;
+    }
+    button:hover { border-color: var(--accent); background: #1e293b; }
+    button.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+    button.primary { background: var(--green); color: #052e16; border-color: var(--green); }
+    button.primary:hover { filter: brightness(1.1); }
+    button.reset { background: #334155; }
+
+    /* Telemetría */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .metric-card {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 9px;
+    }
+    .metric-card .m-label { font-size: 0.7rem; color: var(--muted); }
+    .metric-card .m-val { font-size: 0.95rem; font-weight: 700; font-family: monospace; color: #fff; margin-top: 2px; }
+    .stage-banner {
+      background: #0f172a;
+      border-left: 4px solid var(--accent);
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      margin-top: 8px;
+    }
+    .stage-banner strong { display: block; color: var(--accent); font-size: 0.75rem; text-transform: uppercase; }
+    .alert-box {
+      display: none;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--danger);
+      color: #fca5a5;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      margin-top: 8px;
+    }
+
+    /* Área principal de visualización */
+    #main-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    #viewports {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    .viewport-box {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-left: 1px solid var(--border);
+    }
+    .vp-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--border);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #canvas3d, #canvas2d { width: 100%; height: 100%; display: block; }
+    .legend-bar {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid var(--border);
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .leg-item { display: flex; align-items: center; gap: 5px; }
+    .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  </style>
+</head>
+<body>
+
+  <!-- PANEL DE CONTROL E INGENIERÍA -->
+  <aside id="sidebar">
+    <h1>Simulador de Equipaje — Equipo 01</h1>
+    <div class="subtitle">Leyes del Movimiento y de Conservación • Tec de Monterrey</div>
+
+    <div class="section-title">Modo de Visualización</div>
+    <div class="view-btns">
+      <button id="btnViewSplit" class="active" onclick="setViewMode('split')">3D + 2D</button>
+      <button id="btnView3D" onclick="setViewMode('3d')">Solo 3D</button>
+      <button id="btnView2D" onclick="setViewMode('2d')">Solo 2D</button>
+    </div>
+
+    <div class="section-title">Controles de Simulación</div>
+    <div class="action-btns">
+      <button id="btnPlayPause" class="primary" onclick="togglePlay()">▶ Iniciar / Pausar</button>
+      <button class="reset" onclick="resetSim()">↺ Reiniciar</button>
+    </div>
+
+    <div class="control-group" style="margin-top:8px;">
+      <div class="control-label">
+        <span>Velocidad de reproducción</span>
+        <span class="val" id="valSpeed">1.0x</span>
+      </div>
+      <input type="range" id="sliderSpeed" min="0.2" max="1.5" step="0.1" value="1.0" oninput="updateParams()">
+    </div>
+
+    <div class="section-title">Parámetros Físicos (Prototipo)</div>
+
+    <div class="control-label"><span>Masa de la maleta (m)</span><span class="val" id="valMass">55 g (0.055 kg)</span></div>
+    <div class="preset-btns">
+      <button onclick="setMass(0.050)" id="m50">50 g</button>
+      <button onclick="setMass(0.055)" id="m55" class="active">55 g (Exp)</button>
+      <button onclick="setMass(0.250)" id="m250">250 g</button>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Ángulo Rampa 1 (θ)</span>
+        <span class="val" id="valTheta">35.0°</span>
+      </div>
+      <input type="range" id="sliderTheta" min="10" max="50" step="0.5" value="35" oninput="updateParams()">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Longitud Rampa 1 (L)</span>
+        <span class="val" id="valLength">1.43 m</span>
+      </div>
+      <input type="range" id="sliderLength" min="1.00" max="1.80" step="0.01" value="1.43" oninput="updateParams()">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Fricción Cinética (μk - MDF)</span>
+        <span class="val" id="valMuk">0.35</span>
+      </div>
+      <input type="range" id="sliderMuk" min="0.10" max="0.60" step="0.01" value="0.35" oninput="updateParams()">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Fricción Estática (μs - Crítico 20°)</span>
+        <span class="val" id="valMus">0.36</span>
+      </div>
+      <input type="range" id="sliderMus" min="0.15" max="0.65" step="0.01" value="0.36" oninput="updateParams()">
+    </div>
+
+    <div id="staticAlert" class="alert-box">
+      ⚠️ <strong>Bloqueo por fricción estática:</strong> El ángulo de la rampa es menor o igual al ángulo crítico $\theta_c = \arctan(\mu_s)$. La maleta no puede iniciar el deslizamiento por gravedad.
+    </div>
+
+    <div class="section-title">Telemetría en Tiempo Real</div>
+    <div class="stage-banner">
+      <strong>Etapa actual del recorrido</strong>
+      <span id="stageName">0. En punto de salida (Reposo)</span>
+    </div>
+
+    <div class="telemetry-grid">
+      <div class="metric-card">
+        <div class="m-label">Tiempo (t)</div>
+        <div class="m-val" id="tTime">0.000 s</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">Distancia (s)</div>
+        <div class="m-val" id="tDist">0.00 m</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">Rapidez actual (v)</div>
+        <div class="m-val" id="tVel">0.00 m/s</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">Aceleración (a)</div>
+        <div class="m-val" id="tAcc">2.81 m/s²</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">v_f fin Rampa 1</div>
+        <div class="m-val" id="tVfRamp">2.84 m/s</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">t fin Rampa 1</div>
+        <div class="m-val" id="tTRamp">1.008 s</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">Energía Cinética (K)</div>
+        <div class="m-val" id="tEk">0.000 J</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">Calor Fricción (Wf)</div>
+        <div class="m-val" id="tWf">0.000 J</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- VISORES 3D Y 2D -->
+  <main id="main-view">
+    <div id="viewports">
+      <!-- Visor 3D -->
+      <div class="viewport-box" id="vp3d">
+        <div class="vp-badge">
+          <strong>Vista 3D Interactiva</strong> • Arrastra para rotar • Rueda para zoom • Clic derecho para desplazar
+        </div>
+        <canvas id="canvas3d"></canvas>
+        <div class="legend-bar">
+          <div class="leg-item"><span class="swatch" style="background:#f59e0b"></span>1. Rampa 35° (1.43 m)</div>
+          <div class="leg-item"><span class="swatch" style="background:#3b82f6"></span>2-4. Curvas 90° (r=0.30 m)</div>
+          <div class="leg-item"><span class="swatch" style="background:#10b981"></span>5. Recta horizontal (0.50 m)</div>
+          <div class="leg-item"><span class="swatch" style="background:#ec4899"></span>6. Curva 180° peraltada (12°)</div>
+          <div class="leg-item"><span class="swatch" style="background:#06b6d4"></span>7-8. Aproximación (0.45 m)</div>
+          <div class="leg-item"><span class="swatch" style="background:#64748b"></span>9-11. Carrito móvil + Subida 15°</div>
+        </div>
+      </div>
+
+      <!-- Visor 2D -->
+      <div class="viewport-box" id="vp2d">
+        <div class="vp-badge">
+          <strong>Vista 2D en Planta (2.50×2.50 m) y Gráfica v(t)</strong>
+        </div>
+        <canvas id="canvas2d"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    /********************************************************************
+     * 1. PARÁMETROS FÍSICOS Y MODELO MATEMÁTICO POR TRAMOS (EQUIPO 01)
+     ********************************************************************/
+    const g = 9.81;
+    let params = {
+      mass: 0.055,       // kg (55 g caja experimental)
+      thetaDeg: 35.0,    // grados rampa principal
+      rampLen: 1.43,     // metros longitud rampa 1
+      muk: 0.35,         // coef. fricción cinética experimental
+      mus: 0.36,         // coef. fricción estática experimental
+      timeScale: 1.0
+    };
+
+    let simState = {
+      playing: false,
+      time: 0,
+      s: 0,              // distancia acumulada en la pista
+      v: 0,              // rapidez actual
+      a: 0,              // aceleración actual
+      stageIndex: 0,
+      stageLabel: "0. En punto de salida (Reposo)",
+      cartOffset: 0,     // desplazamiento del carrito tras recibir la maleta (m)
+      cartVel: 0,
+      history: [],       // para graficar v(t) en el panel 2D
+      blockedByStatic: false
+    };
+
+    // Definición geométrica y física de la pista en coordenadas del área 2.50m x 2.50m
+    // Sistema 3D: X [-1.25, 1.25], Z [-1.25, 1.25], Y = altura vertical (m)
+    let segments = [];
+    let totalTrackLength = 0;
+    let ramp1Stats = { a: 2.814, vf: 2.837, t: 1.008 };
+
+    function buildTrackModel() {
+      const theta = params.thetaDeg * Math.PI / 180;
+      const critAngle = Math.atan(params.mus);
+      simState.blockedByStatic = (theta <= critAngle);
+
+      // Aceleración en la rampa 1: a = g(sin(theta) - muk*cos(theta))
+      const a1 = Math.max(0, g * (Math.sin(theta) - params.muk * Math.cos(theta)));
+      const L1 = params.rampLen;
+      const vf1 = Math.sqrt(2 * a1 * L1);
+      const t1 = a1 > 0.0001 ? vf1 / a1 : 0;
+      ramp1Stats = { a: a1, vf: vf1, t: t1 };
+
+      document.getElementById('staticAlert').style.display = simState.blockedByStatic ? 'block' : 'none';
+      document.getElementById('tVfRamp').textContent = simState.blockedByStatic ? "0.00 m/s" : vf1.toFixed(2) + " m/s";
+      document.getElementById('tTRamp').textContent = simState.blockedByStatic ? "∞ s" : t1.toFixed(3) + " s";
+
+      // Coordenadas clave en planta (X, Z) fieles al diagrama del Equipo 01
+      // Rampa 1 se proyecta horizontalmente 1.10 m hacia el Este
+      const hDrop1 = L1 * Math.sin(theta);
+      const yEndRamp1 = 0.28; // Altura de la pista intermedia sobre el suelo
+      const yStartRamp1 = yEndRamp1 + hDrop1; // ~1.10 m cuando L=1.43 y theta=35°
+
+      const x0 = -1.05, z0 = -0.80;
+      const x1 = 0.05,  z1 = -0.80; // Fin Rampa 1 (proyección 1.10 m)
+
+      // Radio de curvas = 0.30 m
+      const R = 0.30;
+      const arc90 = 0.5 * Math.PI * R;   // ~0.471 m
+      const arc180 = Math.PI * R;        // ~0.942 m
+
+      // Desaceleraciones físicas en cada tramo después de la rampa 1
+      // Ajustadas con el coeficiente muk para que la maleta conserve impulso y frene en la subida de 15°
+      const aCurve90 = -0.35 * params.muk * g;
+      const aFlat = -0.55 * params.muk * g;
+      const aBanked180 = -0.25 * params.muk * g; // Curva peraltada a 12° minimiza pérdida por fricción lateral
+      const thetaUp = 15 * Math.PI / 180;
+      const aUp15 = -g * (Math.sin(thetaUp) + params.muk * Math.cos(thetaUp)); // Frenado en subida al carrito
+
+      segments = [
+        {
+          id: 1,
+          name: "1. Rampa inicial 35° (Descenso por gravedad)",
+          length: L1,
+          acc: a1,
+          color: 0xf59e0b,
+          hex: "#f59e0b",
+          bankDeg: 0,
+          getPoint: (u) => ({
+            x: x0 + (x1 - x0) * u,
+            y: yStartRamp1 + (yEndRamp1 - yStartRamp1) * u,
+            z: z0,
+            yaw: 0,
+            pitch: -theta,
+            roll: 0
+          })
+        },
+        {
+          id: 2,
+          name: "2. Primera Curva 90° (r = 0.30 m)",
+          length: arc90,
+          acc: aCurve90,
+          color: 0x3b82f6,
+          hex: "#3b82f6",
+          bankDeg: 0,
+          getPoint: (u) => {
+            const ang = -Math.PI / 2 + u * (Math.PI / 2);
+            return {
+              x: x1 + R * Math.cos(ang),
+              y: yEndRamp1,
+              z: (z1 + R) + R * Math.sin(ang),
+              yaw: -u * (Math.PI / 2),
+              pitch: 0,
+              roll: 0
+            };
+          }
+        },
+        {
+          id: 3,
+          name: "3. Tramo recto conector",
+          length: 0.20,
+          acc: aFlat,
+          color: 0x60a5fa,
+          hex: "#60a5fa",
+          bankDeg: 0,
+          getPoint: (u) => ({
+            x: x1 + R,
+            y: yEndRamp1,
+            z: (z1 + R) + u * 0.20,
+            yaw: -Math.PI / 2,
+            pitch: 0,
+            roll: 0
+          })
+        },
+        {
+          id: 4,
+          name: "4. Segunda Curva 90° (r = 0.30 m)",
+          length: arc90,
+          acc: aCurve90,
+          color: 0x3b82f6,
+          hex: "#3b82f6",
+          bankDeg: 0,
+          getPoint: (u) => {
+            const ang = 0 + u * (Math.PI / 2);
+            return {
+              x: x1 + R * Math.cos(ang),
+              y: yEndRamp1,
+              z: (z1 + R + 0.20) + R * Math.sin(ang),
+              yaw: -Math.PI / 2 - u * (Math.PI / 2),
+              pitch: 0,
+              roll: 0
+            };
+          }
+        },
+        {
+          id: 5,
+          name: "5. Segmento recto horizontal (0.50 m)",
+          length: 0.50,
+          acc: aFlat,
+          color: 0x10b981,
+          hex: "#10b981",
+          bankDeg: 0,
+          getPoint: (u) => ({
+            x: x1 - u * 0.50,
+            y: yEndRamp1,
+            z: z1 + 2 * R + 0.20,
+            yaw: -Math.PI,
+            pitch: 0,
+            roll: 0
+          })
+        },
+        {
+          id: 6,
+          name: "6. Curva 180° peraltada (r = 0.30 m, Φ = 12°)",
+          length: arc180,
+          acc: aBanked180,
+          color: 0xec4899,
+          hex: "#ec4899",
+          bankDeg: 12,
+          getPoint: (u) => {
+            const ang = -Math.PI / 2 - u * Math.PI;
+            const bankRad = (12 * Math.PI / 180) * Math.sin(u * Math.PI);
+            return {
+              x: (x1 - 0.50) + R * Math.cos(ang),
+              y: yEndRamp1 - u * 0.06,
+              z: (z1 + 3 * R + 0.20) + R * Math.sin(ang),
+              yaw: -Math.PI + u * Math.PI,
+              pitch: 0,
+              roll: bankRad
+            };
+          }
+        },
+        {
+          id: 7,
+          name: "7. Tramo de aproximación (0.45 m)",
+          length: 0.45,
+          acc: aFlat,
+          color: 0x06b6d4,
+          hex: "#06b6d4",
+          bankDeg: 0,
+          getPoint: (u) => ({
+            x: (x1 - 0.50) + u * 0.45,
+            y: yEndRamp1 - 0.06,
+            z: z1 + 4 * R + 0.20,
+            yaw: 0,
+            pitch: 0,
+            roll: 0
+          })
+        },
+        {
+          id: 8,
+          name: "8-9. Descenso final y acoplamiento al carrito",
+          length: 0.22,
+          acc: 0.8, // pequeño descenso de acoplamiento hacia la base de la rampa del carrito
+          color: 0xa855f7,
+          hex: "#a855f7",
+          bankDeg: 0,
+          getPoint: (u) => ({
+            x: (x1 - 0.05) + u * 0.22,
+            y: (yEndRamp1 - 0.06) - u * 0.05,
+            z: z1 + 4 * R + 0.20,
+            yaw: 0,
+            pitch: -0.22,
+            roll: 0
+          })
+        },
+        {
+          id: 9,
+          name: "10. Subida en carrito (15°, Δh = 0.067 m) y tope",
+          length: 0.26, // 0.26 * sin(15°) = 0.067 m de desnivel
+          acc: aUp15,
+          color: 0x475569,
+          hex: "#475569",
+          bankDeg: 0,
+          inCart: true,
+          getPoint: (u) => ({
+            x: (x1 + 0.17) + u * 0.25,
+            y: (yEndRamp1 - 0.11) + u * 0.067,
+            z: z1 + 4 * R + 0.20,
+            yaw: 0,
+            pitch: thetaUp,
+            roll: 0
+          })
+        }
+      ];
+
+      // Calcular distancias acumuladas y velocidades de entrada/salida por tramo
+      let cumS = 0;
+      let vIn = 0;
+      let cumT = 0;
+
+      segments.forEach((seg) => {
+        seg.sStart = cumS;
+        seg.sEnd = cumS + seg.length;
+        seg.vStart = vIn;
+
+        if (simState.blockedByStatic) {
+          seg.vEnd = 0;
+          seg.dt = 0;
+        } else {
+          let v2 = vIn * vIn + 2 * seg.acc * seg.length;
+          // En la subida final al tope acolchado, llega con velocidad controlada y se detiene en el tope
+          if (seg.id === 9) {
+            v2 = Math.max(0.15, v2);
+          } else {
+            v2 = Math.max(0.25, v2);
+          }
+          seg.vEnd = Math.sqrt(v2);
+          const vAvg = 0.5 * (seg.vStart + seg.vEnd);
+          seg.dt = vAvg > 0.0001 ? seg.length / vAvg : 0;
+        }
+
+        seg.tStart = cumT;
+        seg.tEnd = cumT + seg.dt;
+        cumS = seg.sEnd;
+        cumT = seg.tEnd;
+        vIn = seg.vEnd;
+      });
+
+      totalTrackLength = cumS;
+    }
+
+    // Obtener estado cinemático y posición 3D para un tiempo t dado
+    function evaluateAtTime(t) {
+      if (simState.blockedByStatic || t <= 0) {
+        const p0 = segments[0].getPoint(0);
+        return {
+          s: 0, v: 0, a: 0,
+          pos: p0,
+          stage: "0. En punto de salida (Reposo)",
+          cartOffset: 0
+        };
+      }
+
+      const tTotalTrack = segments[segments.length - 1].tEnd;
+
+      // Si aún está recorriendo los tramos 1 a 10
+      if (t <= tTotalTrack) {
+        let activeSeg = segments[0];
+        for (let i = 0; i < segments.length; i++) {
+          if (t >= segments[i].tStart && t <= segments[i].tEnd) {
+            activeSeg = segments[i];
+            break;
+          }
+        }
+        const dtLocal = t - activeSeg.tStart;
+        const u = activeSeg.dt > 0 ? Math.min(1, Math.max(0, dtLocal / activeSeg.dt)) : 1;
+        const sLocal = u * activeSeg.length;
+        const vCurr = activeSeg.vStart + (activeSeg.vEnd - activeSeg.vStart) * u;
+        const pos = activeSeg.getPoint(u);
+
+        return {
+          s: activeSeg.sStart + sLocal,
+          v: vCurr,
+          a: activeSeg.acc,
+          pos: pos,
+          stage: activeSeg.name,
+          cartOffset: 0
+        };
+      }
+
+      // Etapa 11: La maleta ya topó con el amortiguador del carrito y se desplaza CON el carrito
+      const dtCart = t - tTotalTrack;
+      const cartDuration = 2.4; // el carrito avanza durante 2.4 segundos llevando la maleta
+      const tClamped = Math.min(dtCart, cartDuration);
+      // Movimiento suave del carrito (acelera y frena suavemente)
+      const progress = tClamped / cartDuration;
+      const smoothStep = progress * progress * (3 - 2 * progress);
+      const maxCartTravel = 0.68; // metros que se desplaza el carrito hacia la derecha
+      const cartOffset = smoothStep * maxCartTravel;
+      const cartSpeed = (dtCart < cartDuration) ? (6 * progress * (1 - progress)) * (maxCartTravel / cartDuration) : 0;
+
+      const lastSeg = segments[segments.length - 1];
+      const endPos = lastSeg.getPoint(0.92); // Posición reposando contra el tope rojo del carrito
+      endPos.x += cartOffset;
+
+      return {
+        s: totalTrackLength,
+        v: cartSpeed,
+        a: 0,
+        pos: endPos,
+        stage: dtCart < cartDuration
+          ? "11. Maleta dentro del carrito (Desplazándose juntos)"
+          : "11. Recorrido completado (Equipaje entregado en carrito)",
+        cartOffset: cartOffset,
+        finished: dtCart >= cartDuration + 0.2
+      };
+    }
+
+    /********************************************************************
+     * 2. ESCENA 3D INTERACTIVA CON THREE.JS
+     ********************************************************************/
+    const canvas3d = document.getElementById('canvas3d');
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1120);
+
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 50);
+    camera.position.set(-1.6, 2.15, 2.35);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(-0.1, 0.35, -0.1);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+
+    // Iluminación
+    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight.position.set(3, 5, 4);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    // Base de 2.50 m x 2.50 m con cuadrícula
+    const baseGroup = new THREE.Group();
+    scene.add(baseGroup);
+
+    const floorGeo = new THREE.PlaneGeometry(2.5, 2.5);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.receiveShadow = true;
+    baseGroup.add(floorMesh);
+
+    const gridHelper = new THREE.GridHelper(2.5, 10, 0x475569, 0x334155);
+    gridHelper.position.y = 0.002;
+    baseGroup.add(gridHelper);
+
+    // Círculo verde de salida y plataforma roja de llegada
+    const startCircle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.11, 0.01, 32),
+      new THREE.MeshStandardMaterial({ color: 0x10b981 })
+    );
+    startCircle.position.set(-1.05, 0.006, -0.80);
+    baseGroup.add(startCircle);
+
+    const endPad = new THREE.Mesh(
+      new THREE.BoxGeometry(1.15, 0.01, 0.36),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 })
+    );
+    endPad.position.set(0.68, 0.005, 0.60);
+    baseGroup.add(endPad);
+
+    // Grupos dinámicos 3D
+    const trackGroup = new THREE.Group();
+    scene.add(trackGroup);
+
+    const cartGroup = new THREE.Group();
+    scene.add(cartGroup);
+
+    const cartWheels = [];
+
+    // Construcción del Carrito receptor con su rampa de 15° y tope acolchado
+    function buildCart3D() {
+      while (cartGroup.children.length) cartGroup.remove(cartGroup.children[0]);
+      cartWheels.length = 0;
+
+      // Plataforma azul-gris del carrito
+      const chassis = new THREE.Mesh(
+        new THREE.BoxGeometry(0.38, 0.04, 0.22),
+        new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.3, roughness: 0.5 })
+      );
+      chassis.position.set(0.30, 0.07, 0.60);
+      chassis.castShadow = true;
+      cartGroup.add(chassis);
+
+      // Rampa interna de subida (15°) sobre el carrito
+      const rampCart = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.02, 0.14),
+        new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 })
+      );
+      rampCart.position.set(0.29, 0.14, 0.60);
+      rampCart.rotation.z = 15 * Math.PI / 180;
+      cartGroup.add(rampCart);
+
+      // Barandales laterales de la rampa del carrito
+      [-0.065, 0.065].forEach(zOff => {
+        const rail = new THREE.Mesh(
+          new THREE.BoxGeometry(0.28, 0.035, 0.012),
+          new THREE.MeshStandardMaterial({ color: 0x94a3b8 })
+        );
+        rail.position.set(0.29, 0.16, 0.60 + zOff);
+        rail.rotation.z = 15 * Math.PI / 180;
+        cartGroup.add(rail);
+      });
+
+      // Tope acolchado rojo al final de la subida de 15°
+      const bumper = new THREE.Mesh(
+        new THREE.BoxGeometry(0.03, 0.09, 0.15),
+        new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 })
+      );
+      bumper.position.set(0.43, 0.20, 0.60);
+      bumper.rotation.z = 15 * Math.PI / 180;
+      cartGroup.add(bumper);
+
+      // Manubrio trasero del carrito
+      const handle = new THREE.Mesh(
+        new THREE.BoxGeometry(0.015, 0.22, 0.18),
+        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6 })
+      );
+      handle.position.set(0.47, 0.18, 0.60);
+      cartGroup.add(handle);
+
+      // 4 Ruedas del carrito
+      const wheelGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.025, 20);
+      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+      [
+        [0.17, 0.035, 0.71],
+        [0.43, 0.035, 0.71],
+        [0.17, 0.035, 0.49],
+        [0.43, 0.035, 0.49]
+      ].forEach(([wx, wy, wz]) => {
+        const w = new THREE.Mesh(wheelGeo, wheelMat);
+        w.rotation.x = Math.PI / 2;
+        w.position.set(wx, wy, wz);
+        cartGroup.add(w);
+        cartWheels.push(w);
+      });
+    }
+
+    // Construcción de la maleta a escala (con franja amarilla como en el diseño)
+    const suitcaseGroup = new THREE.Group();
+    scene.add(suitcaseGroup);
+    {
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.11, 0.06, 0.085),
+        new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.35 })
+      );
+      body.position.y = 0.035;
+      body.castShadow = true;
+      suitcaseGroup.add(body);
+
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.025, 0.062, 0.087),
+        new THREE.MeshStandardMaterial({ color: 0xfacc15 })
+      );
+      stripe.position.y = 0.035;
+      suitcaseGroup.add(stripe);
+    }
+
+    // Generación de la malla 3D de la pista (con barandales y postes de madera)
+    function rebuildTrack3D() {
+      while (trackGroup.children.length) trackGroup.remove(trackGroup.children[0]);
+
+      const trackWidth = 0.12; // 12 cm de ancho según reporte
+      const wallHeight = 0.032;
+
+      // Construir los tramos fijos (1 a 8)
+      segments.forEach((seg) => {
+        if (seg.inCart) return; // El tramo 9-10 está integrado en el carrito móvil
+
+        const steps = seg.id === 6 ? 28 : 16;
+        for (let i = 0; i < steps; i++) {
+          const u0 = i / steps;
+          const u1 = (i + 1) / steps;
+          const uMid = 0.5 * (u0 + u1);
+          const p0 = seg.getPoint(u0);
+          const p1 = seg.getPoint(u1);
+          const pMid = seg.getPoint(uMid);
+
+          const dx = p1.x - p0.x;
+          const dy = p1.y - p0.y;
+          const dz = p1.z - p0.z;
+          const segLen = Math.sqrt(dx * dx + dy * dy + dz * dz) * 1.04;
+
+          const holder = new THREE.Group();
+          holder.position.set(pMid.x, pMid.y, pMid.z);
+          holder.rotation.order = 'YXZ';
+          holder.rotation.y = pMid.yaw;
+          holder.rotation.z = pMid.pitch;
+          holder.rotation.x = pMid.roll;
+
+          // Base del canal
+          const baseMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(segLen, 0.014, trackWidth),
+            new THREE.MeshStandardMaterial({ color: seg.color, roughness: 0.55 })
+          );
+          baseMesh.castShadow = true;
+          baseMesh.receiveShadow = true;
+          holder.add(baseMesh);
+
+          // Paredes laterales para guiar la maleta
+          [-trackWidth / 2, trackWidth / 2].forEach((zSide) => {
+            const wall = new THREE.Mesh(
+              new THREE.BoxGeometry(segLen, wallHeight, 0.01),
+              new THREE.MeshStandardMaterial({ color: seg.color, roughness: 0.4 })
+            );
+            wall.position.set(0, wallHeight / 2, zSide);
+            holder.add(wall);
+          });
+
+          trackGroup.add(holder);
+        }
+
+        // Soportes verticales de madera (palos de soporte)
+        const pillarPoints = seg.id === 1 ? [0.05, 0.5, 0.95] : [0.5];
+        pillarPoints.forEach((up) => {
+          const pp = seg.getPoint(up);
+          const hPillar = pp.y;
+          if (hPillar > 0.05) {
+            const pillar = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.016, 0.016, hPillar, 12),
+              new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.8 })
+            );
+            pillar.position.set(pp.x, hPillar / 2, pp.z);
+            trackGroup.add(pillar);
+          }
+        });
+      });
+    }
+
+    /********************************************************************
+     * 3. VISTA 2D EN PLANTA Y GRÁFICA v(t) EN TIEMPO REAL
+     ********************************************************************/
+    const canvas2d = document.getElementById('canvas2d');
+    const ctx2d = canvas2d.getContext('2d');
+
+    function draw2DView(evalData) {
+      const W = canvas2d.width;
+      const H = canvas2d.height;
+      ctx2d.clearRect(0, 0, W, H);
+
+      // Dividir el canvas 2D: Arriba Vista en Planta (62%), Abajo Gráfica v(t) (38%)
+      const mapH = H * 0.62;
+      const pad = 28;
+      const mapSize = Math.min(W - pad * 2, mapH - pad * 2);
+      const originX = (W - mapSize) / 2;
+      const originY = (mapH - mapSize) / 2 + 12;
+
+      // Función auxiliar: convertir coordenadas del mundo (x, z en [-1.25, 1.25]) a píxeles 2D
+      const toPx = (wx, wz) => ({
+        px: originX + ((wx + 1.25) / 2.5) * mapSize,
+        py: originY + ((wz + 1.25) / 2.5) * mapSize
+      });
+
+      // Fondo y cuadrícula de 2.50 m x 2.50 m
+      ctx2d.fillStyle = "#0f172a";
+      ctx2d.fillRect(originX, originY, mapSize, mapSize);
+      ctx2d.strokeStyle = "#334155";
+      ctx2d.lineWidth = 1;
+
+      for (let i = 0; i <= 10; i++) {
+        const pos = (i / 10) * mapSize;
+        ctx2d.beginPath();
+        ctx2d.moveTo(originX + pos, originY);
+        ctx2d.lineTo(originX + pos, originY + mapSize);
+        ctx2d.stroke();
+
+        ctx2d.beginPath();
+        ctx2d.moveTo(originX, originY + pos);
+        ctx2d.lineTo(originX + mapSize, originY + pos);
+        ctx2d.stroke();
+      }
+
+      // Etiquetas de dimensión 2.50 m
+      ctx2d.fillStyle = "#94a3b8";
+      ctx2d.font = "11px sans-serif";
+      ctx2d.fillText("2.50 m (Norte ↑)", originX + 6, originY - 6);
+      ctx2d.fillText("Salida (S)", toPx(-1.05, -0.80).px - 20, toPx(-1.05, -0.80).py - 14);
+
+      // Dibujar los tramos de la pista en 2D
+      segments.forEach((seg) => {
+        ctx2d.strokeStyle = seg.hex;
+        ctx2d.lineWidth = (0.12 / 2.5) * mapSize;
+        ctx2d.lineCap = "butt";
+        ctx2d.beginPath();
+        const steps = 20;
+        for (let i = 0; i <= steps; i++) {
+          const p = seg.getPoint(i / steps);
+          const offset = seg.inCart ? evalData.cartOffset : 0;
+          const { px, py } = toPx(p.x + offset, p.z);
+          if (i === 0) ctx2d.moveTo(px, py);
+          else ctx2d.lineTo(px, py);
+        }
+        ctx2d.stroke();
+      });
+
+      // Dibujar el carrito en 2D desplazándose
+      const cartCenter = toPx(0.30 + evalData.cartOffset, 0.60);
+      const cartW = (0.38 / 2.5) * mapSize;
+      const cartH = (0.22 / 2.5) * mapSize;
+      ctx2d.strokeStyle = "#38bdf8";
+      ctx2d.lineWidth = 2;
+      ctx2d.strokeRect(cartCenter.px - cartW / 2, cartCenter.py - cartH / 2, cartW, cartH);
+      ctx2d.fillStyle = "#ef4444";
+      ctx2d.fillRect(cartCenter.px + cartW / 2 - 5, cartCenter.py - cartH / 2 + 2, 5, cartH - 4);
+
+      // Dibujar la maleta en 2D en su posición exacta
+      const bagPx = toPx(evalData.pos.x, evalData.pos.z);
+      ctx2d.save();
+      ctx2d.translate(bagPx.px, bagPx.py);
+      ctx2d.rotate(-evalData.pos.yaw);
+      ctx2d.fillStyle = "#1d4ed8";
+      ctx2d.strokeStyle = "#facc15";
+      ctx2d.lineWidth = 2;
+      ctx2d.fillRect(-9, -6, 18, 12);
+      ctx2d.strokeRect(-9, -6, 18, 12);
+      ctx2d.restore();
+
+      // --- GRÁFICA DE VELOCIDAD v(t) EN LA PARTE INFERIOR ---
+      const gTop = mapH + 18;
+      const gH = H - gTop - 26;
+      const gLeft = 48;
+      const gW = W - gLeft - 20;
+
+      ctx2d.fillStyle = "#0f172a";
+      ctx2d.fillRect(gLeft, gTop, gW, gH);
+      ctx2d.strokeStyle = "#334155";
+      ctx2d.strokeRect(gLeft, gTop, gW, gH);
+
+      ctx2d.fillStyle = "#94a3b8";
+      ctx2d.font = "11px monospace";
+      ctx2d.fillText("Rapidez v(t) [m/s]", gLeft + 8, gTop + 14);
+      ctx2d.fillText("3.5", 16, gTop + 10);
+      ctx2d.fillText("0.0", 16, gTop + gH);
+
+      // Curva v(t)
+      const maxT = Math.max(4.8, segments[segments.length - 1].tEnd + 2.4);
+      const maxV = 3.5;
+
+      ctx2d.strokeStyle = "#38bdf8";
+      ctx2d.lineWidth = 2;
+      ctx2d.beginPath();
+      const samples = 120;
+      for (let i = 0; i <= samples; i++) {
+        const tSample = (i / samples) * simState.time;
+        const ev = evaluateAtTime(tSample);
+        const gx = gLeft + (tSample / maxT) * gW;
+        const gy = gTop + gH - (Math.min(ev.v, maxV) / maxV) * gH;
+        if (i === 0) ctx2d.moveTo(gx, gy);
+        else ctx2d.lineTo(gx, gy);
+      }
+      ctx2d.stroke();
+
+      // Punto actual en la gráfica
+      const curGx = gLeft + (Math.min(simState.time, maxT) / maxT) * gW;
+      const curGy = gTop + gH - (Math.min(evalData.v, maxV) / maxV) * gH;
+      ctx2d.fillStyle = "#f59e0b";
+      ctx2d.beginPath();
+      ctx2d.arc(curGx, curGy, 4.5, 0, Math.PI * 2);
+      ctx2d.fill();
+    }
+
+    /********************************************************************
+     * 4. INTERFAZ, CONTROLES Y BUCLE PRINCIPAL DE ANIMACIÓN
+     ********************************************************************/
+    function updateParams() {
+      params.thetaDeg = parseFloat(document.getElementById('sliderTheta').value);
+      params.rampLen = parseFloat(document.getElementById('sliderLength').value);
+      params.muk = parseFloat(document.getElementById('sliderMuk').value);
+      params.mus = parseFloat(document.getElementById('sliderMus').value);
+      params.timeScale = parseFloat(document.getElementById('sliderSpeed').value);
+
+      document.getElementById('valTheta').textContent = params.thetaDeg.toFixed(1) + "°";
+      document.getElementById('valLength').textContent = params.rampLen.toFixed(2) + " m";
+      document.getElementById('valMuk').textContent = params.muk.toFixed(2);
+      document.getElementById('valMus').textContent = params.mus.toFixed(2);
+      document.getElementById('valSpeed').textContent = params.timeScale.toFixed(1) + "x";
+
+      buildTrackModel();
+      rebuildTrack3D();
+      updateVisuals();
+    }
+
+    function setMass(m) {
+      params.mass = m;
+      document.getElementById('valMass').textContent = `${Math.round(m * 1000)} g (${m.toFixed(3)} kg)`;
+      ['m50', 'm55', 'm250'].forEach(id => document.getElementById(id).classList.remove('active'));
+      if (m === 0.050) document.getElementById('m50').classList.add('active');
+      if (m === 0.055) document.getElementById('m55').classList.add('active');
+      if (m === 0.250) document.getElementById('m250').classList.add('active');
+      updateVisuals();
+    }
+
+    function togglePlay() {
+      const ev = evaluateAtTime(simState.time);
+      if (ev.finished) {
+        simState.time = 0;
+      }
+      simState.playing = !simState.playing;
+      document.getElementById('btnPlayPause').textContent = simState.playing ? "⏸ Pausar" : "▶ Continuar";
+    }
+
+    function resetSim() {
+      simState.playing = false;
+      simState.time = 0;
+      document.getElementById('btnPlayPause').textContent = "▶ Iniciar / Pausar";
+      updateVisuals();
+    }
+
+    function setViewMode(mode) {
+      const vp3d = document.getElementById('vp3d');
+      const vp2d = document.getElementById('vp2d');
+      const container = document.getElementById('viewports');
+      ['btnViewSplit', 'btnView3D', 'btnView2D'].forEach(id => document.getElementById(id).classList.remove('active'));
+
+      if (mode === 'split') {
+        document.getElementById('btnViewSplit').classList.add('active');
+        vp3d.style.display = 'block';
+        vp2d.style.display = 'block';
+        container.style.gridTemplateColumns = '1.35fr 1fr';
+      } else if (mode === '3d') {
+        document.getElementById('btnView3D').classList.add('active');
+        vp3d.style.display = 'block';
+        vp2d.style.display = 'none';
+        container.style.gridTemplateColumns = '1fr';
+      } else {
+        document.getElementById('btnView2D').classList.add('active');
+        vp3d.style.display = 'none';
+        vp2d.style.display = 'block';
+        container.style.gridTemplateColumns = '1fr';
+      }
+      onResize();
+    }
+
+    function updateVisuals() {
+      const ev = evaluateAtTime(simState.time);
+
+      // Posicionar maleta en 3D
+      suitcaseGroup.position.set(ev.pos.x, ev.pos.y + 0.008, ev.pos.z);
+      suitcaseGroup.rotation.order = 'YXZ';
+      suitcaseGroup.rotation.y = ev.pos.yaw;
+      suitcaseGroup.rotation.z = ev.pos.pitch;
+      suitcaseGroup.rotation.x = ev.pos.roll;
+
+      // Posicionar carrito móvil y rotar sus ruedas cuando avanza con la maleta
+      cartGroup.position.x = ev.cartOffset;
+      cartWheels.forEach(w => {
+        w.rotation.z = -ev.cartOffset / 0.035;
+      });
+
+      // Actualizar tarjetas de telemetría
+      document.getElementById('stageName').textContent = ev.stage;
+      document.getElementById('tTime').textContent = simState.time.toFixed(3) + " s";
+      document.getElementById('tDist').textContent = ev.s.toFixed(2) + " m";
+      document.getElementById('tVel').textContent = ev.v.toFixed(2) + " m/s";
+      document.getElementById('tAcc').textContent = ev.a.toFixed(2) + " m/s²";
+
+      const ek = 0.5 * params.mass * ev.v * ev.v;
+      const wf = params.muk * params.mass * g * ev.s;
+      document.getElementById('tEk').textContent = ek.toFixed(3) + " J";
+      document.getElementById('tWf').textContent = wf.toFixed(3) + " J";
+
+      if (ev.finished && simState.playing) {
+        simState.playing = false;
+        document.getElementById('btnPlayPause').textContent = "▶ Repetir recorrido";
+      }
+
+      draw2DView(ev);
+    }
+
+    function onResize() {
+      const vp3d = document.getElementById('vp3d');
+      if (vp3d.clientWidth > 0 && vp3d.clientHeight > 0) {
+        camera.aspect = vp3d.clientWidth / vp3d.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(vp3d.clientWidth, vp3d.clientHeight);
+      }
+      const vp2d = document.getElementById('vp2d');
+      if (vp2d.clientWidth > 0 && vp2d.clientHeight > 0) {
+        canvas2d.width = vp2d.clientWidth;
+        canvas2d.height = vp2d.clientHeight;
+      }
+      updateVisuals();
+    }
+
+    window.addEventListener('resize', onResize);
+
+    // Inicialización
+    buildCart3D();
+    buildTrackModel();
+    rebuildTrack3D();
+    setTimeout(onResize, 50);
+
+    let lastClock = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = (now - lastClock) / 1000;
+      lastClock = now;
+
+      if (simState.playing && !simState.blockedByStatic) {
+        simState.time += dt * params.timeScale;
+        updateVisuals();
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
