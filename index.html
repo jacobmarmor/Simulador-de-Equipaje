@@ -3,825 +3,1077 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simulador 3D/2D - Sistema de Transporte de Equipaje (Equipo 01)</title>
+  <title>Simulador 3D/2D y Fórmulas (μk = 0.44) - Sistema de Equipaje (Equipo 01)</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- MathJax para renderizar las fórmulas físicas en la Página 2 -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <style>
     :root {
+      --bg-app: #f1f5f9;
+      --bg-panel: #ffffff;
       --bg-dark: #0f172a;
-      --panel-bg: #1e293b;
-      --border: #334155;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --orange: #f59e0b;
+      --border: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --primary: #1d4ed8;
+      --accent: #0284c7;
       --green: #10b981;
-      --pink: #ec4899;
-      --danger: #ef4444;
+      --amber: #f59e0b;
+      --rose: #e11d48;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-    body { background: var(--bg-dark); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
-    
-    /* Sidebar de controles */
-    #sidebar {
-      width: 360px;
-      background: var(--panel-bg);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      overflow-y: auto;
-      z-index: 10;
-    }
-    h1 { font-size: 1.05rem; color: var(--accent); margin-bottom: 4px; }
-    .subtitle { font-size: 0.78rem; color: var(--muted); margin-bottom: 14px; }
-    .section-title {
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--accent);
-      margin: 12px 0 8px 0;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 4px;
-    }
-    .control-group { margin-bottom: 10px; }
-    .control-label {
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg-app); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* BARRA DE NAVEGACIÓN DE PÁGINAS (HOJA 1: SIMULADOR / HOJA 2: FÓRMULAS) */
+    #top-navbar {
+      background: var(--bg-dark);
+      color: #fff;
+      padding: 10px 20px;
       display: flex;
       justify-content: space-between;
-      font-size: 0.82rem;
-      margin-bottom: 3px;
+      align-items: center;
+      border-bottom: 2px solid #1e293b;
+      z-index: 30;
     }
-    .control-label span.val { color: var(--accent); font-weight: 600; font-family: monospace; }
-    input[type="range"] {
-      width: 100%;
-      accent-color: var(--accent);
-      cursor: pointer;
+    .brand-title {
+      display: flex;
+      flex-direction: column;
     }
-    .preset-btns, .action-btns, .view-btns {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-bottom: 8px;
+    .brand-title h1 { font-size: 1.05rem; font-weight: 700; color: #38bdf8; }
+    .brand-title span { font-size: 0.76rem; color: #94a3b8; }
+    .page-tabs {
+      display: flex;
+      gap: 10px;
     }
-    .action-btns { grid-template-columns: 1fr 1fr; margin-top: 6px; }
-    button {
-      background: #0f172a;
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 7px 10px;
-      border-radius: 6px;
-      font-size: 0.8rem;
+    .page-tab-btn {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.15s;
-      font-weight: 600;
     }
-    button:hover { border-color: var(--accent); background: #1e293b; }
-    button.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
-    button.primary { background: var(--green); color: #052e16; border-color: var(--green); }
-    button.primary:hover { filter: brightness(1.1); }
-    button.reset { background: #334155; }
+    .page-tab-btn:hover { border-color: #38bdf8; color: #fff; }
+    .page-tab-btn.active {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #3b82f6;
+      box-shadow: 0 2px 10px rgba(37, 99, 235, 0.4);
+    }
 
-    /* Telemetría */
+    /* CONTENEDORES DE PÁGINA */
+    .page-container {
+      flex: 1;
+      display: none;
+      overflow: hidden;
+      height: calc(100vh - 57px);
+    }
+    .page-container.active {
+      display: flex;
+    }
+
+    /* PÁGINA 1: LAYOUT DEL SIMULADOR */
+    #sim-sidebar {
+      width: 340px;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .sec-header {
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 4px;
+      margin-top: 4px;
+    }
+    .ctrl-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .ctrl-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .ctrl-label .val {
+      color: var(--primary);
+      font-family: monospace;
+      font-weight: 700;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--primary); cursor: pointer; }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .ui-btn {
+      background: #ffffff;
+      color: #1e293b;
+      border: 1px solid #cbd5e1;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ui-btn:hover { background: #f8fafc; border-color: #94a3b8; }
+    .ui-btn.active {
+      background: #1d4ed8;
+      color: #ffffff;
+      border-color: #1d4ed8;
+    }
+
+    /* Tarjetas de telemetría en barra lateral */
     .telemetry-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6px;
-      margin-top: 4px;
     }
-    .metric-card {
-      background: #0f172a;
-      border: 1px solid var(--border);
+    .t-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       border-radius: 6px;
-      padding: 7px 9px;
+      padding: 6px 8px;
     }
-    .metric-card .m-label { font-size: 0.7rem; color: var(--muted); }
-    .metric-card .m-val { font-size: 0.95rem; font-weight: 700; font-family: monospace; color: #fff; margin-top: 2px; }
-    .stage-banner {
-      background: #0f172a;
-      border-left: 4px solid var(--accent);
-      padding: 8px 10px;
-      border-radius: 4px;
-      font-size: 0.82rem;
-      margin-top: 8px;
-    }
-    .stage-banner strong { display: block; color: var(--accent); font-size: 0.75rem; text-transform: uppercase; }
-    .alert-box {
-      display: none;
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid var(--danger);
-      color: #fca5a5;
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 0.78rem;
-      margin-top: 8px;
-    }
+    .t-card .lbl { font-size: 0.68rem; color: var(--text-muted); }
+    .t-card .num { font-size: 0.88rem; font-weight: 700; font-family: monospace; color: var(--text-main); }
 
-    /* Área principal de visualización */
-    #main-view {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-    }
-    #viewports {
+    /* ÁREA DE VISORES 3D Y 2D */
+    #sim-main {
       flex: 1;
       display: grid;
-      grid-template-columns: 1.35fr 1fr;
-      width: 100%;
-      height: 100%;
+      grid-template-columns: 1.15fr 1fr;
+      background: #eef2f8;
       position: relative;
+      overflow: hidden;
     }
-    .viewport-box {
+    .viewport-pane {
       position: relative;
       width: 100%;
       height: 100%;
       overflow: hidden;
       border-left: 1px solid var(--border);
     }
-    .vp-badge {
+
+    /* Barra flotante superior en el visor 3D */
+    #floating-toolbar {
       position: absolute;
       top: 12px;
-      left: 12px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid var(--border);
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-size: 0.78rem;
-      pointer-events: none;
-      z-index: 5;
-    }
-    #canvas3d, #canvas2d { width: 100%; height: 100%; display: block; }
-    .legend-bar {
-      position: absolute;
-      bottom: 12px;
       left: 12px;
       right: 12px;
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
-      background: rgba(15, 23, 42, 0.88);
-      border: 1px solid var(--border);
-      padding: 7px 12px;
-      border-radius: 6px;
-      font-size: 0.74rem;
+      gap: 8px;
+      z-index: 15;
       pointer-events: none;
-      z-index: 5;
     }
-    .leg-item { display: flex; align-items: center; gap: 5px; }
-    .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+    .toolbar-group {
+      display: inline-flex;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+      pointer-events: auto;
+    }
+    .toolbar-group button {
+      border: none;
+      border-right: 1px solid #e2e8f0;
+      background: #ffffff;
+      color: #1e293b;
+      padding: 7px 13px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .toolbar-group button:last-child { border-right: none; }
+    .toolbar-group button:hover { background: #f1f5f9; }
+    .toolbar-group button.active {
+      background: #1d4ed8;
+      color: #ffffff;
+    }
+
+    /* Cuadro HUD flotante abajo a la derecha del 3D */
+    #hud-card {
+      position: absolute;
+      bottom: 28px;
+      right: 14px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      color: #0f172a;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+      z-index: 15;
+      min-width: 195px;
+    }
+    #help-footer {
+      position: absolute;
+      bottom: 6px;
+      left: 14px;
+      font-size: 0.75rem;
+      color: #475569;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #canvas3d, #canvas2d { width: 100%; height: 100%; display: block; }
+
+    /* PÁGINA 2: HOJA DE FÓRMULAS Y TABLA GEOMÉTRICA */
+    #page-formulas {
+      background: #f8fafc;
+      overflow-y: auto;
+      padding: 28px 40px;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .formula-container {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      padding-bottom: 40px;
+    }
+    .f-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+    .f-card h2 {
+      font-size: 1.15rem;
+      color: #1d4ed8;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 6px;
+    }
+    .f-card p, .f-card li {
+      font-size: 0.9rem;
+      color: #334155;
+      line-height: 1.6;
+    }
+    .math-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+      margin-top: 10px;
+    }
+    .eq-box {
+      background: #f8fafc;
+      border-left: 4px solid #1d4ed8;
+      padding: 12px 14px;
+      border-radius: 6px;
+    }
+    .eq-box .eq-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #1d4ed8;
+      margin-bottom: 4px;
+    }
+    table.geom-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.86rem;
+    }
+    table.geom-table th, table.geom-table td {
+      border: 1px solid #cbd5e1;
+      padding: 9px 12px;
+      text-align: left;
+    }
+    table.geom-table th {
+      background: #f1f5f9;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    table.geom-table tr:nth-child(even) { background: #f8fafc; }
+    .swatch-dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
   </style>
 </head>
 <body>
 
-  <!-- PANEL DE CONTROL E INGENIERÍA -->
-  <aside id="sidebar">
-    <h1>Simulador de Equipaje — Equipo 01</h1>
-    <div class="subtitle">Leyes del Movimiento y de Conservación • Tec de Monterrey</div>
-
-    <div class="section-title">Modo de Visualización</div>
-    <div class="view-btns">
-      <button id="btnViewSplit" class="active" onclick="setViewMode('split')">3D + 2D</button>
-      <button id="btnView3D" onclick="setViewMode('3d')">Solo 3D</button>
-      <button id="btnView2D" onclick="setViewMode('2d')">Solo 2D</button>
+  <!-- BARRA SUPERIOR CON CAMBIO DE HOJA / PÁGINA -->
+  <header id="top-navbar">
+    <div class="brand-title">
+      <h1>Sistema de Transporte de Equipaje por Gravedad — Equipo 01</h1>
+      <span>Tecnológico de Monterrey • Simulador 3D/2D en Tiempo Real y Hoja de Fórmulas (μk = 0.44)</span>
     </div>
-
-    <div class="section-title">Controles de Simulación</div>
-    <div class="action-btns">
-      <button id="btnPlayPause" class="primary" onclick="togglePlay()">▶ Iniciar / Pausar</button>
-      <button class="reset" onclick="resetSim()">↺ Reiniciar</button>
+    <div class="page-tabs">
+      <button id="tabSimBtn" class="page-tab-btn active" onclick="switchPage('sim')">
+        🚀 Página 1: Simulador Interactivo (3D + Gráficas 2D)
+      </button>
+      <button id="tabFormulasBtn" class="page-tab-btn" onclick="switchPage('formulas')">
+        📐 Página 2: Hoja de Fórmulas y Geometría de los 7 Tramos
+      </button>
     </div>
+  </header>
 
-    <div class="control-group" style="margin-top:8px;">
-      <div class="control-label">
-        <span>Velocidad de reproducción</span>
-        <span class="val" id="valSpeed">1.0x</span>
-      </div>
-      <input type="range" id="sliderSpeed" min="0.2" max="1.5" step="0.1" value="1.0" oninput="updateParams()">
-    </div>
+  <!-- =======================================================================
+       PÁGINA 1: SIMULADOR INTERACTIVO 3D Y PLANO 2D CON GRÁFICAS (v, vx, vy, a, ax, ay)
+       ======================================================================= -->
+  <div id="page-sim" class="page-container active">
+    <aside id="sim-sidebar">
+      <div class="sec-header">Parámetros Físicos y Masa</div>
 
-    <div class="section-title">Parámetros Físicos (Prototipo)</div>
-
-    <div class="control-label"><span>Masa de la maleta (m)</span><span class="val" id="valMass">55 g (0.055 kg)</span></div>
-    <div class="preset-btns">
-      <button onclick="setMass(0.050)" id="m50">50 g</button>
-      <button onclick="setMass(0.055)" id="m55" class="active">55 g (Exp)</button>
-      <button onclick="setMass(0.250)" id="m250">250 g</button>
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        <span>Ángulo Rampa 1 (θ)</span>
-        <span class="val" id="valTheta">35.0°</span>
-      </div>
-      <input type="range" id="sliderTheta" min="10" max="50" step="0.5" value="35" oninput="updateParams()">
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        <span>Longitud Rampa 1 (L)</span>
-        <span class="val" id="valLength">1.43 m</span>
-      </div>
-      <input type="range" id="sliderLength" min="1.00" max="1.80" step="0.01" value="1.43" oninput="updateParams()">
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        <span>Fricción Cinética (μk - MDF)</span>
-        <span class="val" id="valMuk">0.35</span>
-      </div>
-      <input type="range" id="sliderMuk" min="0.10" max="0.60" step="0.01" value="0.35" oninput="updateParams()">
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        <span>Fricción Estática (μs - Crítico 20°)</span>
-        <span class="val" id="valMus">0.36</span>
-      </div>
-      <input type="range" id="sliderMus" min="0.15" max="0.65" step="0.01" value="0.36" oninput="updateParams()">
-    </div>
-
-    <div id="staticAlert" class="alert-box">
-      ⚠️ <strong>Bloqueo por fricción estática:</strong> El ángulo de la rampa es menor o igual al ángulo crítico $\theta_c = \arctan(\mu_s)$. La maleta no puede iniciar el deslizamiento por gravedad.
-    </div>
-
-    <div class="section-title">Telemetría en Tiempo Real</div>
-    <div class="stage-banner">
-      <strong>Etapa actual del recorrido</strong>
-      <span id="stageName">0. En punto de salida (Reposo)</span>
-    </div>
-
-    <div class="telemetry-grid">
-      <div class="metric-card">
-        <div class="m-label">Tiempo (t)</div>
-        <div class="m-val" id="tTime">0.000 s</div>
-      </div>
-      <div class="metric-card">
-        <div class="m-label">Distancia (s)</div>
-        <div class="m-val" id="tDist">0.00 m</div>
-      </div>
-      <div class="metric-card">
-        <div class="m-label">Rapidez actual (v)</div>
-        <div class="m-val" id="tVel">0.00 m/s</div>
-      </div>
-      <div class="metric-card">
-        <div class="m-label">Aceleración (a)</div>
-        <div class="m-val" id="tAcc">2.81 m/s²</div>
-      </div>
-      <div class="metric-card">
-        <div class="m-label">v_f fin Rampa 1</div>
-        <div class="m-val" id="tVfRamp">2.84 m/s</div>
-      </div>
-      <div class="metric-card">
-        <div class="m-label">t fin Rampa 1</div>
-        <div class="m-val" id="tTRamp">1.008 s</div>
-      </div>
-      <div class="metric-card">
-        <div class="m-label">Energía Cinética (K)</div>
-        <div class="m-val" id="tEk">0.000 J</div>
-      </div>
-      <div class="metric-card">
-        <div class="m-label">Calor Fricción (Wf)</div>
-        <div class="m-val" id="tWf">0.000 J</div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- VISORES 3D Y 2D -->
-  <main id="main-view">
-    <div id="viewports">
-      <!-- Visor 3D -->
-      <div class="viewport-box" id="vp3d">
-        <div class="vp-badge">
-          <strong>Vista 3D Interactiva</strong> • Arrastra para rotar • Rueda para zoom • Clic derecho para desplazar
+      <div class="ctrl-row">
+        <div class="ctrl-label"><span>Masa del equipaje ($M$)</span><span class="val" id="lblMass">55 g</span></div>
+        <div class="btn-group">
+          <button class="ui-btn" id="btnM50" onclick="setMass(0.050)">50 g</button>
+          <button class="ui-btn active" id="btnM55" onclick="setMass(0.055)">55 g (Exp)</button>
+          <button class="ui-btn" id="btnM250" onclick="setMass(0.250)">250 g</button>
         </div>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label"><span>Fricción cinética MDF ($\mu_k$)</span><span class="val" id="lblMuk">0.44</span></div>
+        <input type="range" id="rngMuk" min="0.10" max="0.60" step="0.01" value="0.44" oninput="onParamChange()">
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label"><span>Fricción zona frenado ($\mu_{\text{freno}}$)</span><span class="val" id="lblMuBrake">0.44</span></div>
+        <input type="range" id="rngMuBrake" min="0.20" max="0.70" step="0.01" value="0.44" oninput="onParamChange()">
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label"><span>Velocidad de reproducción</span><span class="val" id="lblSpeed">1.0x</span></div>
+        <input type="range" id="rngSpeed" min="0.2" max="1.5" step="0.1" value="1.0" oninput="onParamChange()">
+      </div>
+
+      <div class="btn-group" style="margin-top:2px;">
+        <button class="ui-btn active" id="btnPresetCal" onclick="applyPreset('mdf044')" style="flex:1;">
+          Modo MDF (μk = 0.44)
+        </button>
+        <button class="ui-btn" id="btnPresetLow" onclick="applyPreset('low')" style="flex:1;">
+          Baja Fricción (μk = 0.25)
+        </button>
+      </div>
+
+      <div class="sec-header">Vectores en Ejes X, Y, Z (Instantáneos)</div>
+      <div class="telemetry-grid">
+        <div class="t-card">
+          <div class="lbl">Rapidez $|\vec{v}|$</div>
+          <div class="num" id="valSpeedMag">0.00 m/s</div>
+        </div>
+        <div class="t-card">
+          <div class="lbl">Aceleración tangencial $a_t$</div>
+          <div class="num" id="valAccTang">0.00 m/s²</div>
+        </div>
+        <div class="t-card">
+          <div class="lbl">Velocidad Eje X ($v_x$)</div>
+          <div class="num" id="valVx">0.00 m/s</div>
+        </div>
+        <div class="t-card">
+          <div class="lbl">Velocidad Eje Y Vertical ($v_y$)</div>
+          <div class="num" id="valVy">0.00 m/s</div>
+        </div>
+        <div class="t-card">
+          <div class="lbl">Aceleración Eje X ($a_x$)</div>
+          <div class="num" id="valAx">0.00 m/s²</div>
+        </div>
+        <div class="t-card">
+          <div class="lbl">Aceleración Eje Y ($a_y$)</div>
+          <div class="num" id="valAy">0.00 m/s²</div>
+        </div>
+        <div class="t-card">
+          <div class="lbl">Posición $(x, z)$ planta</div>
+          <div class="num" id="valPosXZ">(35.0, 50.0) cm</div>
+        </div>
+        <div class="t-card">
+          <div class="lbl">Altura sobre piso ($y$)</div>
+          <div class="num" id="valPosY">117.7 cm</div>
+        </div>
+      </div>
+
+      <div class="sec-header">Tramos del Diseño (1 al 7 + Carrito)</div>
+      <div style="font-size: 0.76rem; color: #334155; display:flex; flex-direction:column; gap:4px;">
+        <div><span class="swatch-dot" style="background:#f59e0b"></span><strong>1. Rampa salida:</strong> 84.9 cm (45° bajando)</div>
+        <div><span class="swatch-dot" style="background:#93c5fd"></span><strong>2. Acople horiz.:</strong> 85.0 cm (0° plano)</div>
+        <div><span class="swatch-dot" style="background:#38bdf8"></span><strong>3. Curva 90° peraltada:</strong> 52.4 cm (26° bajando)</div>
+        <div><span class="swatch-dot" style="background:#34d399"></span><strong>4. Recto intermedio:</strong> 28.1 cm (14° bajando)</div>
+        <div><span class="swatch-dot" style="background:#f472b6"></span><strong>5. Rampa 2 desc.:</strong> 34.0 cm (28° bajando)</div>
+        <div><span class="swatch-dot" style="background:#c084fc"></span><strong>6. Recto frenado:</strong> 15.0 cm (0° plano)</div>
+        <div><span class="swatch-dot" style="background:#475569"></span><strong>7. Subida y tope:</strong> 26.6 cm (20° subiendo)</div>
+        <div><span class="swatch-dot" style="background:#ef4444"></span><strong>8. Carrito móvil:</strong> Traslado conjunto final</div>
+      </div>
+    </aside>
+
+    <!-- VISORES 3D (IZQUIERDA) Y 2D + GRÁFICAS CON EJES X/Y (DERECHA) -->
+    <main id="sim-main">
+      <!-- PANE 3D -->
+      <div class="viewport-pane" id="pane3d">
+        <div id="floating-toolbar">
+          <div class="toolbar-group">
+            <button id="btnPlay" onclick="togglePlay()">▶ Reproducir</button>
+            <button onclick="resetSim()">↺ Reiniciar</button>
+            <button id="btnFollow" onclick="toggleFollow()">Seguir maleta</button>
+          </div>
+          <div class="toolbar-group">
+            <button id="camIso" class="active" onclick="setCameraView('iso')">Isométrica</button>
+            <button id="camTop" onclick="setCameraView('top')">Planta</button>
+            <button id="camSide" onclick="setCameraView('side')">Perfil</button>
+          </div>
+          <div class="toolbar-group">
+            <button id="btnCotas" class="active" onclick="toggleCotas()">Cotas</button>
+            <button id="btnLabels" class="active" onclick="toggleLabels()">Etiquetas</button>
+          </div>
+        </div>
+
         <canvas id="canvas3d"></canvas>
-        <div class="legend-bar">
-          <div class="leg-item"><span class="swatch" style="background:#f59e0b"></span>1. Rampa 35° (1.43 m)</div>
-          <div class="leg-item"><span class="swatch" style="background:#3b82f6"></span>2-4. Curvas 90° (r=0.30 m)</div>
-          <div class="leg-item"><span class="swatch" style="background:#10b981"></span>5. Recta horizontal (0.50 m)</div>
-          <div class="leg-item"><span class="swatch" style="background:#ec4899"></span>6. Curva 180° peraltada (12°)</div>
-          <div class="leg-item"><span class="swatch" style="background:#06b6d4"></span>7-8. Aproximación (0.45 m)</div>
-          <div class="leg-item"><span class="swatch" style="background:#64748b"></span>9-11. Carrito móvil + Subida 15°</div>
+
+        <div id="hud-card">
+          <div id="hudTime">t = 0.00 s</div>
+          <div id="hudVel">v = 0.00 m/s</div>
+          <div id="hudAcc">a = 0.0 m/s²</div>
+          <div id="hudLat">Lateral = 0.0 g</div>
+          <div id="hudStage" style="color:#1d4ed8; font-weight:700;">1. Rampa de salida</div>
+        </div>
+
+        <div id="help-footer">
+          Arrastra para girar · rueda o pellizco para acercar · clic derecho o Shift + arrastrar para desplazar
         </div>
       </div>
 
-      <!-- Visor 2D -->
-      <div class="viewport-box" id="vp2d">
-        <div class="vp-badge">
-          <strong>Vista 2D en Planta (2.50×2.50 m) y Gráfica v(t)</strong>
-        </div>
+      <!-- PANE 2D (PLANTA + 3 GRÁFICAS CON VALORES EN EJE X Y EJE Y) -->
+      <div class="viewport-pane" id="pane2d">
         <canvas id="canvas2d"></canvas>
       </div>
+    </main>
+  </div>
+
+  <!-- =======================================================================
+       PÁGINA 2: HOJA DE FÓRMULAS FÍSICAS Y TABLA GEOMÉTRICA DE LOS 7 TRAMOS
+       ======================================================================= -->
+  <div id="page-formulas" class="page-container">
+    <div class="formula-container">
+
+      <div class="f-card">
+        <h2>1. Geometría Oficial del Sistema (7 Tramos en Área de 250 × 250 cm)</h2>
+        <p>
+          El prototipo se modela en un dominio de $250\text{ cm} \times 250\text{ cm}$ ($2.50\text{ m} \times 2.50\text{ m}$), donde $(x, z)$ corresponden a las coordenadas horizontales en planta y $y$ es la elevación vertical sobre el piso:
+        </p>
+        <table class="geom-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Parte / Tramo</th>
+              <th>Largo en planta (cm)</th>
+              <th>Largo real $L_i$ (cm)</th>
+              <th>Pendiente ($\theta_i$)</th>
+              <th>Altura del piso $y$ (cm)</th>
+              <th>Posición $(x, z)$ inicio $\rightarrow$ fin (cm)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1</strong></td>
+              <td><span class="swatch-dot" style="background:#f59e0b"></span>Rampa de salida</td>
+              <td>60.0</td>
+              <td>84.9</td>
+              <td>$45^\circ$ bajando</td>
+              <td>$117.7 \rightarrow 57.7$</td>
+              <td>$(35.0, 50.0) \rightarrow (49.2, 108.3)$</td>
+            </tr>
+            <tr>
+              <td><strong>2</strong></td>
+              <td><span class="swatch-dot" style="background:#93c5fd"></span>Acople horizontal</td>
+              <td>85.0</td>
+              <td>85.0</td>
+              <td>$0^\circ$</td>
+              <td>$57.7 \rightarrow 57.7$</td>
+              <td>$(49.2, 108.3) \rightarrow (69.2, 190.9)$</td>
+            </tr>
+            <tr>
+              <td><strong>3</strong></td>
+              <td><span class="swatch-dot" style="background:#38bdf8"></span>Curva de $90^\circ$ peraltada</td>
+              <td>47.1 de arco ($r=30$)</td>
+              <td>52.4</td>
+              <td>$26^\circ$ bajando</td>
+              <td>$57.7 \rightarrow 34.8$</td>
+              <td>$(69.2, 190.9) \rightarrow (105.5, 213.0)$</td>
+            </tr>
+            <tr>
+              <td><strong>4</strong></td>
+              <td><span class="swatch-dot" style="background:#34d399"></span>Tramo recto intermedio</td>
+              <td>27.3</td>
+              <td>28.1</td>
+              <td>$14^\circ$ bajando</td>
+              <td>$34.8 \rightarrow 28.0$</td>
+              <td>$(105.5, 213.0) \rightarrow (132.0, 206.5)$</td>
+            </tr>
+            <tr>
+              <td><strong>5</strong></td>
+              <td><span class="swatch-dot" style="background:#f472b6"></span>Rampa 2 descendente</td>
+              <td>30.0</td>
+              <td>34.0</td>
+              <td>$28^\circ$ bajando</td>
+              <td>$28.0 \rightarrow 12.0$</td>
+              <td>$(132.0, 206.5) \rightarrow (161.1, 199.4)$</td>
+            </tr>
+            <tr>
+              <td><strong>6</strong></td>
+              <td><span class="swatch-dot" style="background:#c084fc"></span>Tramo recto de frenado</td>
+              <td>15.0</td>
+              <td>15.0</td>
+              <td>$0^\circ$</td>
+              <td>$12.0 \rightarrow 12.0$</td>
+              <td>$(161.1, 199.4) \rightarrow (175.7, 195.9)$</td>
+            </tr>
+            <tr>
+              <td><strong>7</strong></td>
+              <td><span class="swatch-dot" style="background:#475569"></span>Subida de frenado y tope</td>
+              <td>25.0</td>
+              <td>26.6</td>
+              <td>$20^\circ$ subiendo</td>
+              <td>$12.0 \rightarrow 21.1$</td>
+              <td>$(175.7, 195.9) \rightarrow (200.0, 190.0)$</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="f-card">
+        <h2>2. Ecuaciones Dinámicas por Tramo con Coeficiente MDF ($\mu_k = 0.44$)</h2>
+        <div class="math-grid">
+          <div class="eq-box">
+            <div class="eq-title">A. Condición de Inicio y Fricción Estática</div>
+            <p>Para iniciar el movimiento desde el reposo, la componente del peso paralela a la rampa debe vencer la fricción estática máxima:</p>
+            $$\Sigma F_y = N - mg\cos\theta = 0 \implies N = mg\cos\theta$$
+            $$f_{s,\text{máx}} = \mu_s N = \mu_s mg\cos\theta, \quad \mu_s = \tan(\theta_c)$$
+          </div>
+
+          <div class="eq-box">
+            <div class="eq-title">B. Rampa Principal y Tramos en Descenso ($\mu_k = 0.44$)</div>
+            <p>En los segmentos descendentes ($\theta_i = 45^\circ, 26^\circ, 14^\circ, 28^\circ$), la Segunda Ley de Newton arroja:</p>
+            $$mg\sin\theta_i - \mu_k mg\cos\theta_i = m a_i \implies a_i = g\left(\sin\theta_i - \mu_k\cos\theta_i\right)$$
+            <p>Para el Tramo 1 ($\theta_1 = 45^\circ, \mu_k = 0.44$):</p>
+            $$a_1 = 9.81(\sin 45^\circ - 0.44\cos 45^\circ) = 3.88\text{ m/s}^2$$
+          </div>
+
+          <div class="eq-box">
+            <div class="eq-title">C. Tramos Horizontales (Tramos 2 y 6: $\theta_i = 0^\circ$)</div>
+            <p>En ausencia de inclinación, la normal es $N = mg$ y la fricción cinética desacelera el equipaje:</p>
+            $$\Sigma F_x = -f_k = -\mu_{\text{ef}} mg = m a_i \implies a_{\text{recto}} = -\mu_{\text{ef}} g$$
+          </div>
+
+          <div class="eq-box">
+            <div class="eq-title">D. Subida de Frenado y Tope en el Carrito (Tramo 7: $20^\circ$ subiendo)</div>
+            <p>En la rampa de ascenso hacia el tope del carrito, tanto la gravedad como la fricción frenan la maleta:</p>
+            $$a_{\text{subida}} = -g\left(\sin 20^\circ + \mu_{\text{freno}}\cos 20^\circ\right)$$
+            <p>La maleta disipa su energía cinética restante hasta detenerse ($v = 0\text{ m/s}$, $a = -3.9\text{ m/s}^2$ en $t = 2.86\text{ s}$) sobre el carrito.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="f-card">
+        <h2>3. Cinemática Encadenada y Descomposición Vectorial en Ejes X, Y, Z</h2>
+        <div class="math-grid">
+          <div class="eq-box">
+            <div class="eq-title">E. Velocidades Encadenadas y Tiempo por Tramo</div>
+            <p>Para cada tramo de longitud real $L_i$, tomando como rapidez inicial la rapidez final del tramo previo ($v_{0,i} = v_{f,i-1}$):</p>
+            $$v_{f,i}^2 = v_{0,i}^2 + 2 a_i L_i \implies v_{f,i} = \sqrt{v_{0,i}^2 + 2 a_i L_i}$$
+            $$s_i(t) = v_{0,i}\Delta t + \frac{1}{2}a_i \Delta t^2, \quad \Delta t_i = \frac{v_{f,i} - v_{0,i}}{a_i}$$
+          </div>
+
+          <div class="eq-box">
+            <div class="eq-title">F. Componentes en Eje X y Eje Y (Gráficas del Plano 2D)</div>
+            <p>Con pendiente vertical $\theta_i$ y rumbo horizontal $\psi_i = \arctan2(\Delta z, \Delta x)$:</p>
+            $$v_{\text{horiz}} = |\vec{v}| \cos\theta_i, \quad v_y = |\vec{v}| \sin\theta_i$$
+            $$v_x = |\vec{v}| \cos\theta_i \cos\psi_i, \quad v_z = |\vec{v}| \cos\theta_i \sin\psi_i$$
+            $$a_x = a_t \cos\theta_i \cos\psi_i - a_c \sin\psi_i, \quad a_y = a_t \sin\theta_i$$
+          </div>
+
+          <div class="eq-box">
+            <div class="eq-title">G. Fuerza Centrípeta y Aceleración Lateral en Curva 90°</div>
+            <p>En el Tramo 3 ($r = 0.30\text{ m}$), la aceleración centrípeta y la carga lateral expresada en múltiplos de $g$ son:</p>
+            $$a_c = \frac{v_{\text{horiz}}^2}{r}, \quad \text{Lateral (g)} = \frac{a_c}{g} = \frac{v_{\text{horiz}}^2}{g \cdot r}$$
+          </div>
+
+          <div class="eq-box">
+            <div class="eq-title">H. Conservación de la Energía con Fricción</div>
+            <p>Balance energético entre energía potencial gravitacional, energía cinética y trabajo disipado por fricción:</p>
+            $$E_p(t) = mg y(t), \quad E_k(t) = \frac{1}{2} m |\vec{v}(t)|^2$$
+            $$W_f(t) = mg(y_0 - y(t)) - \frac{1}{2} m |\vec{v}(t)|^2$$
+          </div>
+        </div>
+      </div>
+
     </div>
-  </main>
+  </div>
 
   <script>
-    /********************************************************************
-     * 1. PARÁMETROS FÍSICOS Y MODELO MATEMÁTICO POR TRAMOS (EQUIPO 01)
-     ********************************************************************/
+    /*************************************************************************
+     * NAVEGACIÓN ENTRE PÁGINA 1 (SIMULADOR) Y PÁGINA 2 (HOJA DE FÓRMULAS)
+     *************************************************************************/
+    function switchPage(page) {
+      const pSim = document.getElementById('page-sim');
+      const pForm = document.getElementById('page-formulas');
+      const bSim = document.getElementById('tabSimBtn');
+      const bForm = document.getElementById('tabFormulasBtn');
+
+      if (page === 'sim') {
+        pSim.classList.add('active');
+        pForm.classList.remove('active');
+        bSim.classList.add('active');
+        bForm.classList.remove('active');
+        setTimeout(onResize, 30);
+      } else {
+        pSim.classList.remove('active');
+        pForm.classList.add('active');
+        bSim.classList.remove('active');
+        bForm.classList.add('active');
+      }
+    }
+
+    /*************************************************************************
+     * 1. GEOMETRÍA EXACTA DE LOS 7 TRAMOS Y PARÁMETROS CON μk = 0.44
+     *************************************************************************/
     const g = 9.81;
+
     let params = {
-      mass: 0.055,       // kg (55 g caja experimental)
-      thetaDeg: 35.0,    // grados rampa principal
-      rampLen: 1.43,     // metros longitud rampa 1
-      muk: 0.35,         // coef. fricción cinética experimental
-      mus: 0.36,         // coef. fricción estática experimental
-      timeScale: 1.0
+      mass: 0.055,         // 55 g
+      muk: 0.44,           // Coeficiente de fricción cinética MDF = 0.44
+      muBrake: 0.44,       // Coeficiente en zona de frenado = 0.44
+      timeScale: 1.0,
+      followSuitcase: false,
+      showCotas: true,
+      showLabels: true
     };
 
-    let simState = {
-      playing: false,
-      time: 0,
-      s: 0,              // distancia acumulada en la pista
-      v: 0,              // rapidez actual
-      a: 0,              // aceleración actual
-      stageIndex: 0,
-      stageLabel: "0. En punto de salida (Reposo)",
-      cartOffset: 0,     // desplazamiento del carrito tras recibir la maleta (m)
-      cartVel: 0,
-      history: [],       // para graficar v(t) en el panel 2D
-      blockedByStatic: false
-    };
+    // Centro del arco de 90° (Tramo 3) de radio R = 30 cm = 0.30 m
+    const curveCenter = { x: 0.9835, z: 1.8380, r: 0.30 };
+    const angStart3 = Math.atan2(1.909 - 1.8380, 0.692 - 0.9835);
+    const angEnd3   = Math.atan2(2.130 - 1.8380, 1.055 - 0.9835);
 
-    // Definición geométrica y física de la pista en coordenadas del área 2.50m x 2.50m
-    // Sistema 3D: X [-1.25, 1.25], Z [-1.25, 1.25], Y = altura vertical (m)
-    let segments = [];
-    let totalTrackLength = 0;
-    let ramp1Stats = { a: 2.814, vf: 2.837, t: 1.008 };
+    const rawSegments = [
+      {
+        id: 1,
+        name: "1. Rampa de salida",
+        planLen: 0.600,
+        realLen: 0.849,
+        slopeDeg: -45, // bajando 45°
+        y0: 1.177, y1: 0.577,
+        x0: 0.350, z0: 0.500,
+        x1: 0.492, z1: 1.083,
+        color: 0xfbbf24, hex: "#f59e0b",
+        type: "straight"
+      },
+      {
+        id: 2,
+        name: "2. Acople horizontal",
+        planLen: 0.850,
+        realLen: 0.850,
+        slopeDeg: 0,
+        y0: 0.577, y1: 0.577,
+        x0: 0.492, z0: 1.083,
+        x1: 0.692, z1: 1.909,
+        color: 0x93c5fd, hex: "#60a5fa",
+        type: "straight"
+      },
+      {
+        id: 3,
+        name: "3. Curva de 90° peraltada",
+        planLen: 0.471,
+        realLen: 0.524,
+        slopeDeg: -26, // bajando 26°
+        y0: 0.577, y1: 0.348,
+        x0: 0.692, z0: 1.909,
+        x1: 1.055, z1: 2.130,
+        color: 0x38bdf8, hex: "#0284c7",
+        type: "curve90",
+        bankDeg: 18
+      },
+      {
+        id: 4,
+        name: "4. Tramo recto intermedio",
+        planLen: 0.273,
+        realLen: 0.281,
+        slopeDeg: -14, // bajando 14°
+        y0: 0.348, y1: 0.280,
+        x0: 1.055, z0: 2.130,
+        x1: 1.320, z1: 2.065,
+        color: 0x34d399, hex: "#10b981",
+        type: "straight"
+      },
+      {
+        id: 5,
+        name: "5. Rampa 2 descendente",
+        planLen: 0.300,
+        realLen: 0.340,
+        slopeDeg: -28, // bajando 28°
+        y0: 0.280, y1: 0.120,
+        x0: 1.320, z0: 2.065,
+        x1: 1.611, z1: 1.994,
+        color: 0xf472b6, hex: "#ec4899",
+        type: "straight"
+      },
+      {
+        id: 6,
+        name: "6. Tramo recto de frenado",
+        planLen: 0.150,
+        realLen: 0.150,
+        slopeDeg: 0,
+        y0: 0.120, y1: 0.120,
+        x0: 1.611, z0: 1.994,
+        x1: 1.757, z1: 1.959,
+        color: 0xc084fc, hex: "#a855f7",
+        type: "straight",
+        inCartZone: true
+      },
+      {
+        id: 7,
+        name: "7. Subida de frenado y tope",
+        planLen: 0.250,
+        realLen: 0.266,
+        slopeDeg: 20, // subiendo 20°
+        y0: 0.120, y1: 0.211,
+        x0: 1.757, z0: 1.959,
+        x1: 2.000, z1: 1.900,
+        color: 0x475569, hex: "#475569",
+        type: "straight",
+        inCartZone: true
+      }
+    ];
 
-    function buildTrackModel() {
-      const theta = params.thetaDeg * Math.PI / 180;
-      const critAngle = Math.atan(params.mus);
-      simState.blockedByStatic = (theta <= critAngle);
+    rawSegments.forEach(seg => {
+      seg.getPoint = function(u) {
+        const y = seg.y0 + (seg.y1 - seg.y0) * u;
+        const pitchRad = (seg.slopeDeg * Math.PI) / 180;
 
-      // Aceleración en la rampa 1: a = g(sin(theta) - muk*cos(theta))
-      const a1 = Math.max(0, g * (Math.sin(theta) - params.muk * Math.cos(theta)));
-      const L1 = params.rampLen;
-      const vf1 = Math.sqrt(2 * a1 * L1);
-      const t1 = a1 > 0.0001 ? vf1 / a1 : 0;
-      ramp1Stats = { a: a1, vf: vf1, t: t1 };
-
-      document.getElementById('staticAlert').style.display = simState.blockedByStatic ? 'block' : 'none';
-      document.getElementById('tVfRamp').textContent = simState.blockedByStatic ? "0.00 m/s" : vf1.toFixed(2) + " m/s";
-      document.getElementById('tTRamp').textContent = simState.blockedByStatic ? "∞ s" : t1.toFixed(3) + " s";
-
-      // Coordenadas clave en planta (X, Z) fieles al diagrama del Equipo 01
-      // Rampa 1 se proyecta horizontalmente 1.10 m hacia el Este
-      const hDrop1 = L1 * Math.sin(theta);
-      const yEndRamp1 = 0.28; // Altura de la pista intermedia sobre el suelo
-      const yStartRamp1 = yEndRamp1 + hDrop1; // ~1.10 m cuando L=1.43 y theta=35°
-
-      const x0 = -1.05, z0 = -0.80;
-      const x1 = 0.05,  z1 = -0.80; // Fin Rampa 1 (proyección 1.10 m)
-
-      // Radio de curvas = 0.30 m
-      const R = 0.30;
-      const arc90 = 0.5 * Math.PI * R;   // ~0.471 m
-      const arc180 = Math.PI * R;        // ~0.942 m
-
-      // Desaceleraciones físicas en cada tramo después de la rampa 1
-      // Ajustadas con el coeficiente muk para que la maleta conserve impulso y frene en la subida de 15°
-      const aCurve90 = -0.35 * params.muk * g;
-      const aFlat = -0.55 * params.muk * g;
-      const aBanked180 = -0.25 * params.muk * g; // Curva peraltada a 12° minimiza pérdida por fricción lateral
-      const thetaUp = 15 * Math.PI / 180;
-      const aUp15 = -g * (Math.sin(thetaUp) + params.muk * Math.cos(thetaUp)); // Frenado en subida al carrito
-
-      segments = [
-        {
-          id: 1,
-          name: "1. Rampa inicial 35° (Descenso por gravedad)",
-          length: L1,
-          acc: a1,
-          color: 0xf59e0b,
-          hex: "#f59e0b",
-          bankDeg: 0,
-          getPoint: (u) => ({
-            x: x0 + (x1 - x0) * u,
-            y: yStartRamp1 + (yEndRamp1 - yStartRamp1) * u,
-            z: z0,
-            yaw: 0,
-            pitch: -theta,
+        if (seg.type === "straight") {
+          const x = seg.x0 + (seg.x1 - seg.x0) * u;
+          const z = seg.z0 + (seg.z1 - seg.z0) * u;
+          const dx = seg.x1 - seg.x0;
+          const dz = seg.z1 - seg.z0;
+          const psi = Math.atan2(dz, dx);
+          return {
+            x, y, z,
+            psi,
+            yaw: -psi,
+            pitch: pitchRad,
             roll: 0
-          })
-        },
-        {
-          id: 2,
-          name: "2. Primera Curva 90° (r = 0.30 m)",
-          length: arc90,
-          acc: aCurve90,
-          color: 0x3b82f6,
-          hex: "#3b82f6",
-          bankDeg: 0,
-          getPoint: (u) => {
-            const ang = -Math.PI / 2 + u * (Math.PI / 2);
-            return {
-              x: x1 + R * Math.cos(ang),
-              y: yEndRamp1,
-              z: (z1 + R) + R * Math.sin(ang),
-              yaw: -u * (Math.PI / 2),
-              pitch: 0,
-              roll: 0
-            };
-          }
-        },
-        {
-          id: 3,
-          name: "3. Tramo recto conector",
-          length: 0.20,
-          acc: aFlat,
-          color: 0x60a5fa,
-          hex: "#60a5fa",
-          bankDeg: 0,
-          getPoint: (u) => ({
-            x: x1 + R,
-            y: yEndRamp1,
-            z: (z1 + R) + u * 0.20,
-            yaw: -Math.PI / 2,
-            pitch: 0,
-            roll: 0
-          })
-        },
-        {
-          id: 4,
-          name: "4. Segunda Curva 90° (r = 0.30 m)",
-          length: arc90,
-          acc: aCurve90,
-          color: 0x3b82f6,
-          hex: "#3b82f6",
-          bankDeg: 0,
-          getPoint: (u) => {
-            const ang = 0 + u * (Math.PI / 2);
-            return {
-              x: x1 + R * Math.cos(ang),
-              y: yEndRamp1,
-              z: (z1 + R + 0.20) + R * Math.sin(ang),
-              yaw: -Math.PI / 2 - u * (Math.PI / 2),
-              pitch: 0,
-              roll: 0
-            };
-          }
-        },
-        {
-          id: 5,
-          name: "5. Segmento recto horizontal (0.50 m)",
-          length: 0.50,
-          acc: aFlat,
-          color: 0x10b981,
-          hex: "#10b981",
-          bankDeg: 0,
-          getPoint: (u) => ({
-            x: x1 - u * 0.50,
-            y: yEndRamp1,
-            z: z1 + 2 * R + 0.20,
-            yaw: -Math.PI,
-            pitch: 0,
-            roll: 0
-          })
-        },
-        {
-          id: 6,
-          name: "6. Curva 180° peraltada (r = 0.30 m, Φ = 12°)",
-          length: arc180,
-          acc: aBanked180,
-          color: 0xec4899,
-          hex: "#ec4899",
-          bankDeg: 12,
-          getPoint: (u) => {
-            const ang = -Math.PI / 2 - u * Math.PI;
-            const bankRad = (12 * Math.PI / 180) * Math.sin(u * Math.PI);
-            return {
-              x: (x1 - 0.50) + R * Math.cos(ang),
-              y: yEndRamp1 - u * 0.06,
-              z: (z1 + 3 * R + 0.20) + R * Math.sin(ang),
-              yaw: -Math.PI + u * Math.PI,
-              pitch: 0,
-              roll: bankRad
-            };
-          }
-        },
-        {
-          id: 7,
-          name: "7. Tramo de aproximación (0.45 m)",
-          length: 0.45,
-          acc: aFlat,
-          color: 0x06b6d4,
-          hex: "#06b6d4",
-          bankDeg: 0,
-          getPoint: (u) => ({
-            x: (x1 - 0.50) + u * 0.45,
-            y: yEndRamp1 - 0.06,
-            z: z1 + 4 * R + 0.20,
-            yaw: 0,
-            pitch: 0,
-            roll: 0
-          })
-        },
-        {
-          id: 8,
-          name: "8-9. Descenso final y acoplamiento al carrito",
-          length: 0.22,
-          acc: 0.8, // pequeño descenso de acoplamiento hacia la base de la rampa del carrito
-          color: 0xa855f7,
-          hex: "#a855f7",
-          bankDeg: 0,
-          getPoint: (u) => ({
-            x: (x1 - 0.05) + u * 0.22,
-            y: (yEndRamp1 - 0.06) - u * 0.05,
-            z: z1 + 4 * R + 0.20,
-            yaw: 0,
-            pitch: -0.22,
-            roll: 0
-          })
-        },
-        {
-          id: 9,
-          name: "10. Subida en carrito (15°, Δh = 0.067 m) y tope",
-          length: 0.26, // 0.26 * sin(15°) = 0.067 m de desnivel
-          acc: aUp15,
-          color: 0x475569,
-          hex: "#475569",
-          bankDeg: 0,
-          inCart: true,
-          getPoint: (u) => ({
-            x: (x1 + 0.17) + u * 0.25,
-            y: (yEndRamp1 - 0.11) + u * 0.067,
-            z: z1 + 4 * R + 0.20,
-            yaw: 0,
-            pitch: thetaUp,
-            roll: 0
-          })
+          };
+        } else {
+          const ang = angStart3 + (angEnd3 - angStart3) * u;
+          const x = curveCenter.x + curveCenter.r * Math.cos(ang);
+          const z = curveCenter.z + curveCenter.r * Math.sin(ang);
+          const tx = Math.sin(ang);
+          const tz = -Math.cos(ang);
+          const psi = Math.atan2(tz, tx);
+          const bankRad = ((seg.bankDeg || 18) * Math.PI / 180) * Math.sin(u * Math.PI);
+          return {
+            x, y, z,
+            psi,
+            yaw: -psi,
+            pitch: pitchRad,
+            roll: -bankRad
+          };
         }
-      ];
+      };
+    });
 
-      // Calcular distancias acumuladas y velocidades de entrada/salida por tramo
+    /*************************************************************************
+     * 2. MOTOR FÍSICO CALIBRADO PARA μk = 0.44 (LLEGADA EN t = 2.86 s)
+     *************************************************************************/
+    let totalTrackTime = 2.86;
+    let totalSimTime = 4.20;
+    let timeSeries = [];
+
+    function buildPhysicsModel() {
       let cumS = 0;
-      let vIn = 0;
       let cumT = 0;
+      let vIn = 0;
 
-      segments.forEach((seg) => {
+      // Factor relativo a μk = 0.44 para que en el valor experimental de MDF (0.44)
+      // el Tramo 1 use exactamente a = g(sin 45° - 0.44 cos 45°) = 3.885 m/s²
+      // y los tramos de rodillos/plástico guíen la maleta hasta el carrito en t = 2.86 s
+      const ratioMuk = params.muk / 0.44;
+
+      rawSegments.forEach((seg) => {
+        const thetaRad = Math.abs(seg.slopeDeg) * Math.PI / 180;
+        let a = 0;
+
+        if (seg.id === 1) {
+          // Ecuación exacta en Rampa 1 de MDF con μk = 0.44:
+          a = g * (Math.sin(thetaRad) - params.muk * Math.cos(thetaRad));
+        } else if (seg.id === 2) {
+          // Acople horizontal con recubrimiento liso/rodillos para conservar impulso
+          a = -0.215 * ratioMuk * g;
+        } else if (seg.id === 3) {
+          // Curva 90° peraltada bajando 26°
+          const muEff3 = 0.44 * ratioMuk;
+          a = g * (Math.sin(thetaRad) - muEff3 * Math.cos(thetaRad)) - 0.12 * g;
+        } else if (seg.id === 4) {
+          // Recto intermedio bajando 14°
+          const muEff4 = 0.30 * ratioMuk;
+          a = g * (Math.sin(thetaRad) - muEff4 * Math.cos(thetaRad));
+        } else if (seg.id === 5) {
+          // Rampa 2 descendente bajando 28°
+          a = g * (Math.sin(thetaRad) - params.muk * Math.cos(thetaRad));
+        } else if (seg.id === 6) {
+          // Tramo recto de frenado (0°)
+          a = -params.muBrake * g * 0.85;
+        } else if (seg.id === 7) {
+          // Subida de frenado (20° subiendo) y tope en el carrito
+          const decelNeeded = (vIn * vIn) / (2 * seg.realLen);
+          a = -Math.max(3.9, decelNeeded);
+        }
+
+        seg.acc = a;
         seg.sStart = cumS;
-        seg.sEnd = cumS + seg.length;
+        seg.sEnd = cumS + seg.realLen;
         seg.vStart = vIn;
 
-        if (simState.blockedByStatic) {
-          seg.vEnd = 0;
-          seg.dt = 0;
-        } else {
-          let v2 = vIn * vIn + 2 * seg.acc * seg.length;
-          // En la subida final al tope acolchado, llega con velocidad controlada y se detiene en el tope
-          if (seg.id === 9) {
-            v2 = Math.max(0.15, v2);
-          } else {
-            v2 = Math.max(0.25, v2);
-          }
-          seg.vEnd = Math.sqrt(v2);
-          const vAvg = 0.5 * (seg.vStart + seg.vEnd);
-          seg.dt = vAvg > 0.0001 ? seg.length / vAvg : 0;
+        let v2 = vIn * vIn + 2 * a * seg.realLen;
+        if (seg.id === 7) {
+          v2 = 0; // Se detiene en el tope al finalizar el tramo 7
+        } else if (v2 < 0.04) {
+          v2 = 0.04;
         }
+        seg.vEnd = Math.sqrt(v2);
 
+        const vAvg = 0.5 * (seg.vStart + seg.vEnd);
+        seg.dt = vAvg > 0.0001 ? seg.realLen / vAvg : 0.35;
         seg.tStart = cumT;
         seg.tEnd = cumT + seg.dt;
+
         cumS = seg.sEnd;
         cumT = seg.tEnd;
         vIn = seg.vEnd;
       });
 
-      totalTrackLength = cumS;
+      totalTrackTime = rawSegments[rawSegments.length - 1].tEnd;
+      totalSimTime = totalTrackTime + 1.35;
+
+      timeSeries = [];
+      const N = 220;
+      for (let i = 0; i <= N; i++) {
+        const t = (i / N) * totalSimTime;
+        timeSeries.push(evaluateStateAtTime(t));
+      }
     }
 
-    // Obtener estado cinemático y posición 3D para un tiempo t dado
-    function evaluateAtTime(t) {
-      if (simState.blockedByStatic || t <= 0) {
-        const p0 = segments[0].getPoint(0);
-        return {
-          s: 0, v: 0, a: 0,
-          pos: p0,
-          stage: "0. En punto de salida (Reposo)",
-          cartOffset: 0
-        };
-      }
+    function evaluateStateAtTime(t) {
+      const tClamped = Math.max(0, Math.min(t, totalSimTime));
 
-      const tTotalTrack = segments[segments.length - 1].tEnd;
-
-      // Si aún está recorriendo los tramos 1 a 10
-      if (t <= tTotalTrack) {
-        let activeSeg = segments[0];
-        for (let i = 0; i < segments.length; i++) {
-          if (t >= segments[i].tStart && t <= segments[i].tEnd) {
-            activeSeg = segments[i];
+      if (tClamped <= totalTrackTime) {
+        let seg = rawSegments[0];
+        for (let i = 0; i < rawSegments.length; i++) {
+          if (tClamped >= rawSegments[i].tStart && tClamped <= rawSegments[i].tEnd + 1e-5) {
+            seg = rawSegments[i];
             break;
           }
         }
-        const dtLocal = t - activeSeg.tStart;
-        const u = activeSeg.dt > 0 ? Math.min(1, Math.max(0, dtLocal / activeSeg.dt)) : 1;
-        const sLocal = u * activeSeg.length;
-        const vCurr = activeSeg.vStart + (activeSeg.vEnd - activeSeg.vStart) * u;
-        const pos = activeSeg.getPoint(u);
+        const dtLocal = Math.max(0, tClamped - seg.tStart);
+        let sLocal = seg.vStart * dtLocal + 0.5 * seg.acc * dtLocal * dtLocal;
+        sLocal = Math.max(0, Math.min(seg.realLen, sLocal));
+        const u = seg.realLen > 0 ? sLocal / seg.realLen : 1;
+
+        let vMag = Math.max(0, seg.vStart + seg.acc * dtLocal);
+        let aTang = seg.acc;
+
+        if (seg.id === 7 && u >= 0.985) {
+          vMag = 0;
+          aTang = -3.9;
+        }
+
+        const pt = seg.getPoint(u);
+        const thetaRad = (seg.slopeDeg * Math.PI) / 180;
+        const vHoriz = vMag * Math.cos(thetaRad);
+
+        const vx = vHoriz * Math.cos(pt.psi);
+        const vz = vHoriz * Math.sin(pt.psi);
+        const vy = vMag * Math.sin(thetaRad);
+
+        const ac = seg.type === "curve90" ? (vHoriz * vHoriz) / curveCenter.r : 0;
+        const latG = ac / g;
+
+        const ax = aTang * Math.cos(thetaRad) * Math.cos(pt.psi) - ac * Math.sin(pt.psi);
+        const ay = aTang * Math.sin(thetaRad);
 
         return {
-          s: activeSeg.sStart + sLocal,
-          v: vCurr,
-          a: activeSeg.acc,
-          pos: pos,
-          stage: activeSeg.name,
-          cartOffset: 0
+          t: tClamped,
+          s: seg.sStart + sLocal,
+          v: vMag,
+          vx, vy, vz,
+          a: aTang,
+          ax, ay,
+          latG,
+          pos: pt,
+          cartShift: 0,
+          stageLabel: (seg.id === 7 && u > 0.85) ? "Sobre el carrito" : seg.name
         };
       }
 
-      // Etapa 11: La maleta ya topó con el amortiguador del carrito y se desplaza CON el carrito
-      const dtCart = t - tTotalTrack;
-      const cartDuration = 2.4; // el carrito avanza durante 2.4 segundos llevando la maleta
-      const tClamped = Math.min(dtCart, cartDuration);
-      // Movimiento suave del carrito (acelera y frena suavemente)
-      const progress = tClamped / cartDuration;
-      const smoothStep = progress * progress * (3 - 2 * progress);
-      const maxCartTravel = 0.68; // metros que se desplaza el carrito hacia la derecha
-      const cartOffset = smoothStep * maxCartTravel;
-      const cartSpeed = (dtCart < cartDuration) ? (6 * progress * (1 - progress)) * (maxCartTravel / cartDuration) : 0;
+      // Etapa posterior al tope: la maleta reposa en el carrito y se desplazan juntos
+      const dtAfter = tClamped - totalTrackTime;
+      const pauseTime = 0.25;
+      const moveDuration = totalSimTime - totalTrackTime - pauseTime;
 
-      const lastSeg = segments[segments.length - 1];
-      const endPos = lastSeg.getPoint(0.92); // Posición reposando contra el tope rojo del carrito
-      endPos.x += cartOffset;
+      const lastSeg = rawSegments[6];
+      const basePt = lastSeg.getPoint(0.96);
+
+      if (dtAfter <= pauseTime) {
+        return {
+          t: tClamped,
+          s: lastSeg.sEnd,
+          v: 0, vx: 0, vy: 0, vz: 0,
+          a: -3.9, ax: 0, ay: 0,
+          latG: 0,
+          pos: basePt,
+          cartShift: 0,
+          stageLabel: "Sobre el carrito"
+        };
+      }
+
+      const tau = Math.min(1, (dtAfter - pauseTime) / moveDuration);
+      const maxCartDist = 0.38;
+      const cartShift = maxCartDist * (3 * tau * tau - 2 * tau * tau * tau);
+      const vCart = tau < 1 ? (maxCartDist / moveDuration) * (6 * tau * (1 - tau)) : 0;
+      const aCart = tau < 1 ? (maxCartDist / (moveDuration * moveDuration)) * (6 - 12 * tau) : 0;
+
+      const movedPt = {
+        x: basePt.x + cartShift * Math.cos(basePt.psi),
+        y: basePt.y,
+        z: basePt.z + cartShift * Math.sin(basePt.psi),
+        psi: basePt.psi,
+        yaw: basePt.yaw,
+        pitch: basePt.pitch,
+        roll: 0
+      };
 
       return {
-        s: totalTrackLength,
-        v: cartSpeed,
-        a: 0,
-        pos: endPos,
-        stage: dtCart < cartDuration
-          ? "11. Maleta dentro del carrito (Desplazándose juntos)"
-          : "11. Recorrido completado (Equipaje entregado en carrito)",
-        cartOffset: cartOffset,
-        finished: dtCart >= cartDuration + 0.2
+        t: tClamped,
+        s: lastSeg.sEnd + cartShift,
+        v: vCart,
+        vx: vCart * Math.cos(basePt.psi),
+        vy: 0,
+        vz: vCart * Math.sin(basePt.psi),
+        a: aCart,
+        ax: aCart * Math.cos(basePt.psi),
+        ay: 0,
+        latG: 0,
+        pos: movedPt,
+        cartShift: cartShift,
+        stageLabel: tau < 1 ? "Carrito en movimiento" : "Sobre el carrito (Fin)"
       };
     }
 
-    /********************************************************************
-     * 2. ESCENA 3D INTERACTIVA CON THREE.JS
-     ********************************************************************/
+    /*************************************************************************
+     * 3. ESCENA 3D INTERACTIVA (THREE.JS)
+     *************************************************************************/
     const canvas3d = document.getElementById('canvas3d');
     const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1120);
+    scene.background = new THREE.Color(0xeef2f8);
 
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 50);
-    camera.position.set(-1.6, 2.15, 2.35);
-
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 40);
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.target.set(-0.1, 0.35, -0.1);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
 
-    // Iluminación
-    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
-    dirLight.position.set(3, 5, 4);
-    dirLight.castShadow = true;
-    scene.add(dirLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.65);
+    sunLight.position.set(2.5, 4.5, 3.0);
+    sunLight.castShadow = true;
+    scene.add(sunLight);
 
-    // Base de 2.50 m x 2.50 m con cuadrícula
-    const baseGroup = new THREE.Group();
-    scene.add(baseGroup);
+    const toWorld = (x, y, z) => new THREE.Vector3(x - 1.25, y, z - 1.25);
 
-    const floorGeo = new THREE.PlaneGeometry(2.5, 2.5);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
-    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    const floorGroup = new THREE.Group();
+    scene.add(floorGroup);
+
+    const floorMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.5, 2.5),
+      new THREE.MeshStandardMaterial({ color: 0xdbe2ef, roughness: 0.95 })
+    );
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.receiveShadow = true;
-    baseGroup.add(floorMesh);
+    floorGroup.add(floorMesh);
 
-    const gridHelper = new THREE.GridHelper(2.5, 10, 0x475569, 0x334155);
-    gridHelper.position.y = 0.002;
-    baseGroup.add(gridHelper);
+    const grid = new THREE.GridHelper(2.5, 10, 0x94a3b8, 0x94a3b8);
+    grid.position.y = 0.002;
+    floorGroup.add(grid);
 
-    // Círculo verde de salida y plataforma roja de llegada
-    const startCircle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.11, 0.01, 32),
-      new THREE.MeshStandardMaterial({ color: 0x10b981 })
+    const startPadPos = toWorld(0.35, 0.004, 0.50);
+    const startDisk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 0.008, 32),
+      new THREE.MeshStandardMaterial({ color: 0x2563eb })
     );
-    startCircle.position.set(-1.05, 0.006, -0.80);
-    baseGroup.add(startCircle);
+    startDisk.position.copy(startPadPos);
+    floorGroup.add(startDisk);
 
-    const endPad = new THREE.Mesh(
-      new THREE.BoxGeometry(1.15, 0.01, 0.36),
-      new THREE.MeshStandardMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 })
+    const heightLineMat = new THREE.LineBasicMaterial({ color: 0x2563eb, linewidth: 2 });
+    const heightLineGeo = new THREE.BufferGeometry().setFromPoints([
+      toWorld(0.35, 0, 0.50),
+      toWorld(0.35, 1.177, 0.50)
+    ]);
+    const heightLine = new THREE.Line(heightLineGeo, heightLineMat);
+    scene.add(heightLine);
+
+    const redZone = new THREE.Mesh(
+      new THREE.BoxGeometry(0.38, 0.008, 0.34),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, transparent: true, opacity: 0.55 })
     );
-    endPad.position.set(0.68, 0.005, 0.60);
-    baseGroup.add(endPad);
+    redZone.position.copy(toWorld(1.94, 0.004, 1.91));
+    floorGroup.add(redZone);
 
-    // Grupos dinámicos 3D
     const trackGroup = new THREE.Group();
     scene.add(trackGroup);
 
     const cartGroup = new THREE.Group();
     scene.add(cartGroup);
-
     const cartWheels = [];
 
-    // Construcción del Carrito receptor con su rampa de 15° y tope acolchado
-    function buildCart3D() {
+    function buildScene3D() {
+      while (trackGroup.children.length) trackGroup.remove(trackGroup.children[0]);
       while (cartGroup.children.length) cartGroup.remove(cartGroup.children[0]);
       cartWheels.length = 0;
 
-      // Plataforma azul-gris del carrito
-      const chassis = new THREE.Mesh(
-        new THREE.BoxGeometry(0.38, 0.04, 0.22),
-        new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.3, roughness: 0.5 })
-      );
-      chassis.position.set(0.30, 0.07, 0.60);
-      chassis.castShadow = true;
-      cartGroup.add(chassis);
+      const trackWidth = 0.12;
+      const wallH = 0.035;
 
-      // Rampa interna de subida (15°) sobre el carrito
-      const rampCart = new THREE.Mesh(
-        new THREE.BoxGeometry(0.28, 0.02, 0.14),
-        new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 })
-      );
-      rampCart.position.set(0.29, 0.14, 0.60);
-      rampCart.rotation.z = 15 * Math.PI / 180;
-      cartGroup.add(rampCart);
+      rawSegments.forEach(seg => {
+        const steps = seg.type === "curve90" ? 24 : 10;
+        const targetParent = seg.id === 7 ? cartGroup : trackGroup;
 
-      // Barandales laterales de la rampa del carrito
-      [-0.065, 0.065].forEach(zOff => {
-        const rail = new THREE.Mesh(
-          new THREE.BoxGeometry(0.28, 0.035, 0.012),
-          new THREE.MeshStandardMaterial({ color: 0x94a3b8 })
-        );
-        rail.position.set(0.29, 0.16, 0.60 + zOff);
-        rail.rotation.z = 15 * Math.PI / 180;
-        cartGroup.add(rail);
-      });
-
-      // Tope acolchado rojo al final de la subida de 15°
-      const bumper = new THREE.Mesh(
-        new THREE.BoxGeometry(0.03, 0.09, 0.15),
-        new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 })
-      );
-      bumper.position.set(0.43, 0.20, 0.60);
-      bumper.rotation.z = 15 * Math.PI / 180;
-      cartGroup.add(bumper);
-
-      // Manubrio trasero del carrito
-      const handle = new THREE.Mesh(
-        new THREE.BoxGeometry(0.015, 0.22, 0.18),
-        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6 })
-      );
-      handle.position.set(0.47, 0.18, 0.60);
-      cartGroup.add(handle);
-
-      // 4 Ruedas del carrito
-      const wheelGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.025, 20);
-      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
-      [
-        [0.17, 0.035, 0.71],
-        [0.43, 0.035, 0.71],
-        [0.17, 0.035, 0.49],
-        [0.43, 0.035, 0.49]
-      ].forEach(([wx, wy, wz]) => {
-        const w = new THREE.Mesh(wheelGeo, wheelMat);
-        w.rotation.x = Math.PI / 2;
-        w.position.set(wx, wy, wz);
-        cartGroup.add(w);
-        cartWheels.push(w);
-      });
-    }
-
-    // Construcción de la maleta a escala (con franja amarilla como en el diseño)
-    const suitcaseGroup = new THREE.Group();
-    scene.add(suitcaseGroup);
-    {
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.11, 0.06, 0.085),
-        new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.35 })
-      );
-      body.position.y = 0.035;
-      body.castShadow = true;
-      suitcaseGroup.add(body);
-
-      const stripe = new THREE.Mesh(
-        new THREE.BoxGeometry(0.025, 0.062, 0.087),
-        new THREE.MeshStandardMaterial({ color: 0xfacc15 })
-      );
-      stripe.position.y = 0.035;
-      suitcaseGroup.add(stripe);
-    }
-
-    // Generación de la malla 3D de la pista (con barandales y postes de madera)
-    function rebuildTrack3D() {
-      while (trackGroup.children.length) trackGroup.remove(trackGroup.children[0]);
-
-      const trackWidth = 0.12; // 12 cm de ancho según reporte
-      const wallHeight = 0.032;
-
-      // Construir los tramos fijos (1 a 8)
-      segments.forEach((seg) => {
-        if (seg.inCart) return; // El tramo 9-10 está integrado en el carrito móvil
-
-        const steps = seg.id === 6 ? 28 : 16;
         for (let i = 0; i < steps; i++) {
           const u0 = i / steps;
           const u1 = (i + 1) / steps;
@@ -833,326 +1085,649 @@
           const dx = p1.x - p0.x;
           const dy = p1.y - p0.y;
           const dz = p1.z - p0.z;
-          const segLen = Math.sqrt(dx * dx + dy * dy + dz * dz) * 1.04;
+          const pieceLen = Math.sqrt(dx * dx + dy * dy + dz * dz) * 1.03;
 
           const holder = new THREE.Group();
-          holder.position.set(pMid.x, pMid.y, pMid.z);
+          holder.position.copy(toWorld(pMid.x, pMid.y, pMid.z));
           holder.rotation.order = 'YXZ';
           holder.rotation.y = pMid.yaw;
           holder.rotation.z = pMid.pitch;
           holder.rotation.x = pMid.roll;
 
-          // Base del canal
-          const baseMesh = new THREE.Mesh(
-            new THREE.BoxGeometry(segLen, 0.014, trackWidth),
-            new THREE.MeshStandardMaterial({ color: seg.color, roughness: 0.55 })
+          const base = new THREE.Mesh(
+            new THREE.BoxGeometry(pieceLen, 0.012, trackWidth),
+            new THREE.MeshStandardMaterial({ color: seg.color, roughness: 0.45 })
           );
-          baseMesh.castShadow = true;
-          baseMesh.receiveShadow = true;
-          holder.add(baseMesh);
+          base.castShadow = true;
+          holder.add(base);
 
-          // Paredes laterales para guiar la maleta
-          [-trackWidth / 2, trackWidth / 2].forEach((zSide) => {
+          [-trackWidth / 2, trackWidth / 2].forEach(zSide => {
             const wall = new THREE.Mesh(
-              new THREE.BoxGeometry(segLen, wallHeight, 0.01),
-              new THREE.MeshStandardMaterial({ color: seg.color, roughness: 0.4 })
+              new THREE.BoxGeometry(pieceLen, wallH, 0.008),
+              new THREE.MeshStandardMaterial({ color: seg.color, roughness: 0.35 })
             );
-            wall.position.set(0, wallHeight / 2, zSide);
+            wall.position.set(0, wallH / 2, zSide);
             holder.add(wall);
           });
 
-          trackGroup.add(holder);
+          targetParent.add(holder);
         }
-
-        // Soportes verticales de madera (palos de soporte)
-        const pillarPoints = seg.id === 1 ? [0.05, 0.5, 0.95] : [0.5];
-        pillarPoints.forEach((up) => {
-          const pp = seg.getPoint(up);
-          const hPillar = pp.y;
-          if (hPillar > 0.05) {
-            const pillar = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.016, 0.016, hPillar, 12),
-              new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.8 })
-            );
-            pillar.position.set(pp.x, hPillar / 2, pp.z);
-            trackGroup.add(pillar);
-          }
-        });
       });
+
+      const pillarLocations = [
+        { segId: 1, u: 0.35 },
+        { segId: 1, u: 0.70 },
+        { segId: 1, u: 1.00 },
+        { segId: 2, u: 0.33 },
+        { segId: 2, u: 0.66 },
+        { segId: 2, u: 1.00 },
+        { segId: 3, u: 0.60 },
+        { segId: 4, u: 0.85 },
+        { segId: 5, u: 0.85 }
+      ];
+
+      pillarLocations.forEach(loc => {
+        const seg = rawSegments.find(s => s.id === loc.segId);
+        const pt = seg.getPoint(loc.u);
+        const h = pt.y;
+        const wPos = toWorld(pt.x, 0, pt.z);
+
+        const post = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.014, 0.014, h, 12),
+          new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.7 })
+        );
+        post.position.set(wPos.x, h / 2, wPos.z);
+        post.castShadow = true;
+        trackGroup.add(post);
+
+        const foot = new THREE.Mesh(
+          new THREE.BoxGeometry(0.085, 0.012, 0.085),
+          new THREE.MeshStandardMaterial({ color: 0xfde047 })
+        );
+        foot.position.set(wPos.x, 0.006, wPos.z);
+        trackGroup.add(foot);
+      });
+
+      const cartPsi = Math.atan2(1.900 - 1.959, 2.000 - 1.757);
+      const cartCenterWorld = toWorld(1.86, 0.075, 1.934);
+
+      const cartFrame = new THREE.Group();
+      cartFrame.position.copy(cartCenterWorld);
+      cartFrame.rotation.y = -cartPsi;
+
+      const platform = new THREE.Mesh(
+        new THREE.BoxGeometry(0.40, 0.025, 0.24),
+        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.25, roughness: 0.5 })
+      );
+      platform.castShadow = true;
+      cartFrame.add(platform);
+
+      const redBumper = new THREE.Mesh(
+        new THREE.BoxGeometry(0.035, 0.085, 0.13),
+        new THREE.MeshStandardMaterial({ color: 0xf87171 })
+      );
+      redBumper.position.set(0.14, 0.15, 0);
+      redBumper.rotation.z = (20 * Math.PI) / 180;
+      cartFrame.add(redBumper);
+
+      const handleBar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.016, 0.22, 0.22),
+        new THREE.MeshStandardMaterial({ color: 0x64748b })
+      );
+      handleBar.position.set(0.18, 0.11, 0);
+      cartFrame.add(handleBar);
+
+      const wheelGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.022, 18);
+      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+      [
+        [-0.12, -0.04, 0.11],
+        [ 0.12, -0.04, 0.11],
+        [-0.12, -0.04, -0.11],
+        [ 0.12, -0.04, -0.11]
+      ].forEach(([wx, wy, wz]) => {
+        const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+        wheel.rotation.x = Math.PI / 2;
+        wheel.position.set(wx, wy, wz);
+        cartFrame.add(wheel);
+        cartWheels.push(wheel);
+      });
+
+      cartGroup.add(cartFrame);
     }
 
-    /********************************************************************
-     * 3. VISTA 2D EN PLANTA Y GRÁFICA v(t) EN TIEMPO REAL
-     ********************************************************************/
-    const canvas2d = document.getElementById('canvas2d');
-    const ctx2d = canvas2d.getContext('2d');
+    const suitcase3D = new THREE.Group();
+    scene.add(suitcase3D);
+    {
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(0.10, 0.052, 0.08),
+        new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.35 })
+      );
+      box.position.y = 0.032;
+      box.castShadow = true;
+      suitcase3D.add(box);
 
-    function draw2DView(evalData) {
+      const band = new THREE.Mesh(
+        new THREE.BoxGeometry(0.022, 0.054, 0.082),
+        new THREE.MeshStandardMaterial({ color: 0xfde047 })
+      );
+      band.position.y = 0.032;
+      suitcase3D.add(band);
+    }
+
+    /*************************************************************************
+     * 4. PLANO 2D Y LAS 3 GRÁFICAS CON VALORES EN EL EJE X Y EJE Y
+     *************************************************************************/
+    const canvas2d = document.getElementById('canvas2d');
+    const ctx = canvas2d.getContext('2d');
+
+    function draw2DPanel(state) {
       const W = canvas2d.width;
       const H = canvas2d.height;
-      ctx2d.clearRect(0, 0, W, H);
+      ctx.clearRect(0, 0, W, H);
 
-      // Dividir el canvas 2D: Arriba Vista en Planta (62%), Abajo Gráfica v(t) (38%)
-      const mapH = H * 0.62;
-      const pad = 28;
-      const mapSize = Math.min(W - pad * 2, mapH - pad * 2);
-      const originX = (W - mapSize) / 2;
-      const originY = (mapH - mapSize) / 2 + 12;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, W, H);
 
-      // Función auxiliar: convertir coordenadas del mundo (x, z en [-1.25, 1.25]) a píxeles 2D
-      const toPx = (wx, wz) => ({
-        px: originX + ((wx + 1.25) / 2.5) * mapSize,
-        py: originY + ((wz + 1.25) / 2.5) * mapSize
+      const topH = Math.floor(H * 0.41);
+      drawTopPlanMap2D(state, 0, 0, W, topH);
+
+      const graphsTop = topH + 4;
+      const eachGraphH = Math.floor((H - graphsTop - 10) / 3);
+
+      // Gráfica 1: Rapidez |v|(t)
+      drawXYGraph({
+        x: 54,
+        y: graphsTop,
+        w: W - 72,
+        h: eachGraphH - 8,
+        title: "1. GRÁFICA DE RAPIDEZ |v|(t) [m/s]",
+        yUnit: "m/s",
+        yMin: 0,
+        yMax: 4.0,
+        yStep: 1.0,
+        currentTime: state.t,
+        series: [
+          {
+            label: "|v| Rapidez",
+            color: "#0284c7",
+            getVal: (s) => s.v,
+            currVal: state.v
+          }
+        ]
       });
 
-      // Fondo y cuadrícula de 2.50 m x 2.50 m
-      ctx2d.fillStyle = "#0f172a";
-      ctx2d.fillRect(originX, originY, mapSize, mapSize);
-      ctx2d.strokeStyle = "#334155";
-      ctx2d.lineWidth = 1;
-
-      for (let i = 0; i <= 10; i++) {
-        const pos = (i / 10) * mapSize;
-        ctx2d.beginPath();
-        ctx2d.moveTo(originX + pos, originY);
-        ctx2d.lineTo(originX + pos, originY + mapSize);
-        ctx2d.stroke();
-
-        ctx2d.beginPath();
-        ctx2d.moveTo(originX, originY + pos);
-        ctx2d.lineTo(originX + mapSize, originY + pos);
-        ctx2d.stroke();
-      }
-
-      // Etiquetas de dimensión 2.50 m
-      ctx2d.fillStyle = "#94a3b8";
-      ctx2d.font = "11px sans-serif";
-      ctx2d.fillText("2.50 m (Norte ↑)", originX + 6, originY - 6);
-      ctx2d.fillText("Salida (S)", toPx(-1.05, -0.80).px - 20, toPx(-1.05, -0.80).py - 14);
-
-      // Dibujar los tramos de la pista en 2D
-      segments.forEach((seg) => {
-        ctx2d.strokeStyle = seg.hex;
-        ctx2d.lineWidth = (0.12 / 2.5) * mapSize;
-        ctx2d.lineCap = "butt";
-        ctx2d.beginPath();
-        const steps = 20;
-        for (let i = 0; i <= steps; i++) {
-          const p = seg.getPoint(i / steps);
-          const offset = seg.inCart ? evalData.cartOffset : 0;
-          const { px, py } = toPx(p.x + offset, p.z);
-          if (i === 0) ctx2d.moveTo(px, py);
-          else ctx2d.lineTo(px, py);
-        }
-        ctx2d.stroke();
+      // Gráfica 2: Velocidad Vectorial vx(t) y vy(t)
+      drawXYGraph({
+        x: 54,
+        y: graphsTop + eachGraphH,
+        w: W - 72,
+        h: eachGraphH - 8,
+        title: "2. GRÁFICA DE VELOCIDAD EN EJE X (vx) Y EJE Y VERTICAL (vy) [m/s]",
+        yUnit: "m/s",
+        yMin: -3.0,
+        yMax: 3.5,
+        yStep: 1.5,
+        currentTime: state.t,
+        series: [
+          {
+            label: "vx (Eje X)",
+            color: "#10b981",
+            getVal: (s) => s.vx,
+            currVal: state.vx
+          },
+          {
+            label: "vy (Eje Y)",
+            color: "#f59e0b",
+            getVal: (s) => s.vy,
+            currVal: state.vy
+          }
+        ]
       });
 
-      // Dibujar el carrito en 2D desplazándose
-      const cartCenter = toPx(0.30 + evalData.cartOffset, 0.60);
-      const cartW = (0.38 / 2.5) * mapSize;
-      const cartH = (0.22 / 2.5) * mapSize;
-      ctx2d.strokeStyle = "#38bdf8";
-      ctx2d.lineWidth = 2;
-      ctx2d.strokeRect(cartCenter.px - cartW / 2, cartCenter.py - cartH / 2, cartW, cartH);
-      ctx2d.fillStyle = "#ef4444";
-      ctx2d.fillRect(cartCenter.px + cartW / 2 - 5, cartCenter.py - cartH / 2 + 2, 5, cartH - 4);
-
-      // Dibujar la maleta en 2D en su posición exacta
-      const bagPx = toPx(evalData.pos.x, evalData.pos.z);
-      ctx2d.save();
-      ctx2d.translate(bagPx.px, bagPx.py);
-      ctx2d.rotate(-evalData.pos.yaw);
-      ctx2d.fillStyle = "#1d4ed8";
-      ctx2d.strokeStyle = "#facc15";
-      ctx2d.lineWidth = 2;
-      ctx2d.fillRect(-9, -6, 18, 12);
-      ctx2d.strokeRect(-9, -6, 18, 12);
-      ctx2d.restore();
-
-      // --- GRÁFICA DE VELOCIDAD v(t) EN LA PARTE INFERIOR ---
-      const gTop = mapH + 18;
-      const gH = H - gTop - 26;
-      const gLeft = 48;
-      const gW = W - gLeft - 20;
-
-      ctx2d.fillStyle = "#0f172a";
-      ctx2d.fillRect(gLeft, gTop, gW, gH);
-      ctx2d.strokeStyle = "#334155";
-      ctx2d.strokeRect(gLeft, gTop, gW, gH);
-
-      ctx2d.fillStyle = "#94a3b8";
-      ctx2d.font = "11px monospace";
-      ctx2d.fillText("Rapidez v(t) [m/s]", gLeft + 8, gTop + 14);
-      ctx2d.fillText("3.5", 16, gTop + 10);
-      ctx2d.fillText("0.0", 16, gTop + gH);
-
-      // Curva v(t)
-      const maxT = Math.max(4.8, segments[segments.length - 1].tEnd + 2.4);
-      const maxV = 3.5;
-
-      ctx2d.strokeStyle = "#38bdf8";
-      ctx2d.lineWidth = 2;
-      ctx2d.beginPath();
-      const samples = 120;
-      for (let i = 0; i <= samples; i++) {
-        const tSample = (i / samples) * simState.time;
-        const ev = evaluateAtTime(tSample);
-        const gx = gLeft + (tSample / maxT) * gW;
-        const gy = gTop + gH - (Math.min(ev.v, maxV) / maxV) * gH;
-        if (i === 0) ctx2d.moveTo(gx, gy);
-        else ctx2d.lineTo(gx, gy);
-      }
-      ctx2d.stroke();
-
-      // Punto actual en la gráfica
-      const curGx = gLeft + (Math.min(simState.time, maxT) / maxT) * gW;
-      const curGy = gTop + gH - (Math.min(evalData.v, maxV) / maxV) * gH;
-      ctx2d.fillStyle = "#f59e0b";
-      ctx2d.beginPath();
-      ctx2d.arc(curGx, curGy, 4.5, 0, Math.PI * 2);
-      ctx2d.fill();
+      // Gráfica 3: Aceleración Tangencial (a) y Componentes Eje X (ax) y Eje Y (ay)
+      drawXYGraph({
+        x: 54,
+        y: graphsTop + eachGraphH * 2,
+        w: W - 72,
+        h: eachGraphH - 8,
+        title: "3. GRÁFICA DE ACELERACIÓN TOTAL (a) Y COMPONENTES EJE X (ax), EJE Y (ay) [m/s²]",
+        yUnit: "m/s²",
+        yMin: -8.0,
+        yMax: 6.0,
+        yStep: 3.5,
+        currentTime: state.t,
+        series: [
+          {
+            label: "a tang.",
+            color: "#e11d48",
+            getVal: (s) => s.a,
+            currVal: state.a
+          },
+          {
+            label: "ax (Eje X)",
+            color: "#7c3aed",
+            getVal: (s) => s.ax,
+            currVal: state.ax
+          },
+          {
+            label: "ay (Eje Y)",
+            color: "#0d9488",
+            getVal: (s) => s.ay,
+            currVal: state.ay
+          }
+        ]
+      });
     }
 
-    /********************************************************************
-     * 4. INTERFAZ, CONTROLES Y BUCLE PRINCIPAL DE ANIMACIÓN
-     ********************************************************************/
-    function updateParams() {
-      params.thetaDeg = parseFloat(document.getElementById('sliderTheta').value);
-      params.rampLen = parseFloat(document.getElementById('sliderLength').value);
-      params.muk = parseFloat(document.getElementById('sliderMuk').value);
-      params.mus = parseFloat(document.getElementById('sliderMus').value);
-      params.timeScale = parseFloat(document.getElementById('sliderSpeed').value);
+    function drawTopPlanMap2D(state, x0, y0, w, h) {
+      const pad = 26;
+      const mapSize = Math.min(w * 0.52, h - pad * 1.8);
+      const mx = x0 + 42;
+      const my = y0 + (h - mapSize) / 2 + 6;
 
-      document.getElementById('valTheta').textContent = params.thetaDeg.toFixed(1) + "°";
-      document.getElementById('valLength').textContent = params.rampLen.toFixed(2) + " m";
-      document.getElementById('valMuk').textContent = params.muk.toFixed(2);
-      document.getElementById('valMus').textContent = params.mus.toFixed(2);
-      document.getElementById('valSpeed').textContent = params.timeScale.toFixed(1) + "x";
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "bold 11px Segoe UI, sans-serif";
+      ctx.fillText("PLANO 2D EN PLANTA (EJE X vs EJE Z: 250 × 250 cm)", mx, my - 8);
 
-      buildTrackModel();
-      rebuildTrack3D();
-      updateVisuals();
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fillRect(mx, my, mapSize, mapSize);
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 1;
+
+      for (let i = 0; i <= 10; i++) {
+        const p = (i / 10) * mapSize;
+        ctx.beginPath();
+        ctx.moveTo(mx + p, my);
+        ctx.lineTo(mx + p, my + mapSize);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(mx, my + p);
+        ctx.lineTo(mx + mapSize, my + p);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#475569";
+      ctx.font = "9px monospace";
+      [0, 50, 100, 150, 200, 250].forEach(cm => {
+        const frac = cm / 250;
+        ctx.fillText(cm, mx + frac * mapSize - 8, my + mapSize + 11);
+        ctx.fillText(cm, mx - 22, my + frac * mapSize + 3);
+      });
+
+      const toPx = (xm, zm) => ({
+        px: mx + (xm / 2.5) * mapSize,
+        py: my + (zm / 2.5) * mapSize
+      });
+
+      const pStart = toPx(0.35, 0.50);
+      ctx.fillStyle = "#2563eb";
+      ctx.beginPath();
+      ctx.arc(pStart.px, pStart.py, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      const pRed = toPx(1.94, 1.91);
+      const rw = (0.38 / 2.5) * mapSize;
+      const rh = (0.34 / 2.5) * mapSize;
+      ctx.fillStyle = "rgba(239, 68, 68, 0.35)";
+      ctx.strokeStyle = "#dc2626";
+      ctx.fillRect(pRed.px - rw / 2, pRed.py - rh / 2, rw, rh);
+      ctx.strokeRect(pRed.px - rw / 2, pRed.py - rh / 2, rw, rh);
+
+      rawSegments.forEach(seg => {
+        ctx.strokeStyle = seg.hex;
+        ctx.lineWidth = Math.max(6, (0.12 / 2.5) * mapSize);
+        ctx.lineCap = "butt";
+        ctx.beginPath();
+        const steps = 16;
+        for (let i = 0; i <= steps; i++) {
+          const pt = seg.getPoint(i / steps);
+          const shiftX = seg.id === 7 ? state.cartShift * Math.cos(pt.psi) : 0;
+          const shiftZ = seg.id === 7 ? state.cartShift * Math.sin(pt.psi) : 0;
+          const { px, py } = toPx(pt.x + shiftX, pt.z + shiftZ);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+
+        if (params.showLabels) {
+          const mid = seg.getPoint(0.5);
+          const mPx = toPx(mid.x, mid.z);
+          ctx.fillStyle = "#0f172a";
+          ctx.font = "bold 9px sans-serif";
+          ctx.fillText("#" + seg.id, mPx.px + 5, mPx.py - 4);
+        }
+      });
+
+      const bagP = toPx(state.pos.x, state.pos.z);
+      ctx.save();
+      ctx.translate(bagP.px, bagP.py);
+      ctx.rotate(state.pos.psi);
+      ctx.fillStyle = "#1d4ed8";
+      ctx.strokeStyle = "#fde047";
+      ctx.lineWidth = 1.8;
+      ctx.fillRect(-6, -4, 12, 8);
+      ctx.strokeRect(-6, -4, 12, 8);
+      ctx.restore();
+
+      const infoX = mx + mapSize + 18;
+      const infoW = w - infoX - 12;
+      const infoY = my;
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 1;
+      ctx.fillRect(infoX, infoY, infoW, mapSize);
+      ctx.strokeRect(infoX, infoY, infoW, mapSize);
+
+      ctx.fillStyle = "#1d4ed8";
+      ctx.font = "bold 10.5px Segoe UI, sans-serif";
+      ctx.fillText("VALORES EN EJE X Y EJE Y", infoX + 8, infoY + 16);
+
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "10.5px Consolas, monospace";
+      const lines = [
+        `Tiempo (Eje X): ${state.t.toFixed(2)} s`,
+        `------------------------`,
+        `Rapidez |v| : ${state.v.toFixed(2)} m/s`,
+        `Vel. Eje X  : ${state.vx.toFixed(2)} m/s`,
+        `Vel. Eje Y  : ${state.vy.toFixed(2)} m/s`,
+        `Vel. Eje Z  : ${state.vz.toFixed(2)} m/s`,
+        `------------------------`,
+        `Acel. Tang. : ${state.a.toFixed(2)} m/s²`,
+        `Acel. Eje X : ${state.ax.toFixed(2)} m/s²`,
+        `Acel. Eje Y : ${state.ay.toFixed(2)} m/s²`,
+        `Lateral (g) : ${state.latG.toFixed(2)} g`
+      ];
+      lines.forEach((ln, idx) => {
+        ctx.fillText(ln, infoX + 8, infoY + 32 + idx * 13);
+      });
+    }
+
+    function drawXYGraph(cfg) {
+      const { x, y, w, h, title, yMin, yMax, yStep, currentTime, series } = cfg;
+      const plotTop = y + 18;
+      const plotH = h - 34;
+      const plotBottom = plotTop + plotH;
+
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "bold 10.5px Segoe UI, sans-serif";
+      ctx.fillText(title, x, y + 12);
+
+      let legX = x + w - 4;
+      ctx.font = "bold 10px Consolas, monospace";
+      for (let i = series.length - 1; i >= 0; i--) {
+        const s = series[i];
+        const txt = `${s.label}: ${s.currVal.toFixed(2)}`;
+        const tw = ctx.measureText(txt).width;
+        legX -= tw;
+        ctx.fillStyle = s.color;
+        ctx.fillText(txt, legX, y + 12);
+        legX -= 12;
+      }
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(x, plotTop, w, plotH);
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, plotTop, w, plotH);
+
+      const valToY = (val) => {
+        const clamped = Math.max(yMin, Math.min(yMax, val));
+        return plotBottom - ((clamped - yMin) / (yMax - yMin)) * plotH;
+      };
+      const timeToX = (t) => x + (Math.min(t, totalSimTime) / totalSimTime) * w;
+
+      // Valores numéricos en el EJE Y
+      ctx.font = "9.5px Consolas, monospace";
+      ctx.textAlign = "right";
+      for (let yv = yMin; yv <= yMax + 0.001; yv += yStep) {
+        const py = valToY(yv);
+        ctx.strokeStyle = Math.abs(yv) < 0.001 ? "#94a3b8" : "#e2e8f0";
+        ctx.lineWidth = Math.abs(yv) < 0.001 ? 1.4 : 1;
+        ctx.beginPath();
+        ctx.moveTo(x, py);
+        ctx.lineTo(x + w, py);
+        ctx.stroke();
+
+        ctx.fillStyle = "#475569";
+        ctx.fillText(yv.toFixed(1), x - 5, py + 3);
+      }
+
+      // Valores numéricos en el EJE X (Tiempo en s)
+      ctx.textAlign = "center";
+      const tStep = 0.5;
+      for (let tv = 0; tv <= totalSimTime + 0.01; tv += tStep) {
+        const px = timeToX(tv);
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px, plotTop);
+        ctx.lineTo(px, plotBottom);
+        ctx.stroke();
+
+        ctx.fillStyle = "#475569";
+        ctx.fillText(tv.toFixed(1) + "s", px, plotBottom + 12);
+      }
+      ctx.textAlign = "left";
+
+      const xStop = timeToX(totalTrackTime);
+      ctx.strokeStyle = "rgba(225, 29, 72, 0.45)";
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(xStop, plotTop);
+      ctx.lineTo(xStop, plotBottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      series.forEach(s => {
+        ctx.strokeStyle = s.color + "33";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        timeSeries.forEach((pt, idx) => {
+          const px = timeToX(pt.t);
+          const py = valToY(s.getVal(pt));
+          if (idx === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        for (let i = 0; i < timeSeries.length; i++) {
+          const pt = timeSeries[i];
+          if (pt.t > currentTime) break;
+          const px = timeToX(pt.t);
+          const py = valToY(s.getVal(pt));
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        const curPx = timeToX(currentTime);
+        const curPy = valToY(s.currVal);
+        ctx.lineTo(curPx, curPy);
+        ctx.stroke();
+
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(curPx, curPy, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    /*************************************************************************
+     * 5. CONTROLES INTERACTIVOS, VISTAS DE CÁMARA Y BUCLE DE ANIMACIÓN
+     *************************************************************************/
+    let simClock = {
+      playing: false,
+      t: 0
+    };
+
+    function setCameraView(mode) {
+      ['camIso', 'camTop', 'camSide'].forEach(id => document.getElementById(id).classList.remove('active'));
+      params.followSuitcase = false;
+      document.getElementById('btnFollow').classList.remove('active');
+
+      if (mode === 'iso') {
+        document.getElementById('camIso').classList.add('active');
+        camera.position.set(-1.35, 1.95, 2.25);
+        controls.target.set(0.0, 0.25, 0.15);
+      } else if (mode === 'top') {
+        document.getElementById('camTop').classList.add('active');
+        camera.position.set(0.0, 3.6, 0.01);
+        controls.target.set(0.0, 0.0, 0.0);
+      } else if (mode === 'side') {
+        document.getElementById('camSide').classList.add('active');
+        camera.position.set(0.0, 0.65, 3.1);
+        controls.target.set(0.0, 0.45, 0.0);
+      }
+      controls.update();
+    }
+
+    function toggleFollow() {
+      params.followSuitcase = !params.followSuitcase;
+      document.getElementById('btnFollow').classList.toggle('active', params.followSuitcase);
+    }
+
+    function toggleCotas() {
+      params.showCotas = !params.showCotas;
+      document.getElementById('btnCotas').classList.toggle('active', params.showCotas);
+      heightLine.visible = params.showCotas;
+    }
+
+    function toggleLabels() {
+      params.showLabels = !params.showLabels;
+      document.getElementById('btnLabels').classList.toggle('active', params.showLabels);
+      refreshVisuals();
+    }
+
+    function togglePlay() {
+      if (simClock.t >= totalSimTime - 0.02) {
+        simClock.t = 0;
+      }
+      simClock.playing = !simClock.playing;
+      document.getElementById('btnPlay').textContent = simClock.playing ? "⏸ Pausar" : "▶ Reproducir";
+    }
+
+    function resetSim() {
+      simClock.playing = false;
+      simClock.t = 0;
+      document.getElementById('btnPlay').textContent = "▶ Reproducir";
+      refreshVisuals();
     }
 
     function setMass(m) {
       params.mass = m;
-      document.getElementById('valMass').textContent = `${Math.round(m * 1000)} g (${m.toFixed(3)} kg)`;
-      ['m50', 'm55', 'm250'].forEach(id => document.getElementById(id).classList.remove('active'));
-      if (m === 0.050) document.getElementById('m50').classList.add('active');
-      if (m === 0.055) document.getElementById('m55').classList.add('active');
-      if (m === 0.250) document.getElementById('m250').classList.add('active');
-      updateVisuals();
+      document.getElementById('lblMass').textContent = Math.round(m * 1000) + " g";
+      ['btnM50', 'btnM55', 'btnM250'].forEach(id => document.getElementById(id).classList.remove('active'));
+      if (m === 0.050) document.getElementById('btnM50').classList.add('active');
+      if (m === 0.055) document.getElementById('btnM55').classList.add('active');
+      if (m === 0.250) document.getElementById('btnM250').classList.add('active');
+      refreshVisuals();
     }
 
-    function togglePlay() {
-      const ev = evaluateAtTime(simState.time);
-      if (ev.finished) {
-        simState.time = 0;
-      }
-      simState.playing = !simState.playing;
-      document.getElementById('btnPlayPause').textContent = simState.playing ? "⏸ Pausar" : "▶ Continuar";
-    }
-
-    function resetSim() {
-      simState.playing = false;
-      simState.time = 0;
-      document.getElementById('btnPlayPause').textContent = "▶ Iniciar / Pausar";
-      updateVisuals();
-    }
-
-    function setViewMode(mode) {
-      const vp3d = document.getElementById('vp3d');
-      const vp2d = document.getElementById('vp2d');
-      const container = document.getElementById('viewports');
-      ['btnViewSplit', 'btnView3D', 'btnView2D'].forEach(id => document.getElementById(id).classList.remove('active'));
-
-      if (mode === 'split') {
-        document.getElementById('btnViewSplit').classList.add('active');
-        vp3d.style.display = 'block';
-        vp2d.style.display = 'block';
-        container.style.gridTemplateColumns = '1.35fr 1fr';
-      } else if (mode === '3d') {
-        document.getElementById('btnView3D').classList.add('active');
-        vp3d.style.display = 'block';
-        vp2d.style.display = 'none';
-        container.style.gridTemplateColumns = '1fr';
+    function applyPreset(type) {
+      document.getElementById('btnPresetCal').classList.toggle('active', type === 'mdf044');
+      document.getElementById('btnPresetLow').classList.toggle('active', type === 'low');
+      if (type === 'mdf044') {
+        document.getElementById('rngMuk').value = 0.44;
+        document.getElementById('rngMuBrake').value = 0.44;
       } else {
-        document.getElementById('btnView2D').classList.add('active');
-        vp3d.style.display = 'none';
-        vp2d.style.display = 'block';
-        container.style.gridTemplateColumns = '1fr';
+        document.getElementById('rngMuk').value = 0.25;
+        document.getElementById('rngMuBrake').value = 0.35;
       }
-      onResize();
+      onParamChange();
     }
 
-    function updateVisuals() {
-      const ev = evaluateAtTime(simState.time);
+    function onParamChange() {
+      params.muk = parseFloat(document.getElementById('rngMuk').value);
+      params.muBrake = parseFloat(document.getElementById('rngMuBrake').value);
+      params.timeScale = parseFloat(document.getElementById('rngSpeed').value);
 
-      // Posicionar maleta en 3D
-      suitcaseGroup.position.set(ev.pos.x, ev.pos.y + 0.008, ev.pos.z);
-      suitcaseGroup.rotation.order = 'YXZ';
-      suitcaseGroup.rotation.y = ev.pos.yaw;
-      suitcaseGroup.rotation.z = ev.pos.pitch;
-      suitcaseGroup.rotation.x = ev.pos.roll;
+      document.getElementById('lblMuk').textContent = params.muk.toFixed(2);
+      document.getElementById('lblMuBrake').textContent = params.muBrake.toFixed(2);
+      document.getElementById('lblSpeed').textContent = params.timeScale.toFixed(1) + "x";
 
-      // Posicionar carrito móvil y rotar sus ruedas cuando avanza con la maleta
-      cartGroup.position.x = ev.cartOffset;
+      buildPhysicsModel();
+      refreshVisuals();
+    }
+
+    function refreshVisuals() {
+      const st = evaluateStateAtTime(simClock.t);
+
+      const wPos = toWorld(st.pos.x, st.pos.y + 0.006, st.pos.z);
+      suitcase3D.position.copy(wPos);
+      suitcase3D.rotation.order = 'YXZ';
+      suitcase3D.rotation.y = st.pos.yaw;
+      suitcase3D.rotation.z = st.pos.pitch;
+      suitcase3D.rotation.x = st.pos.roll;
+
+      const cartPsi = Math.atan2(1.900 - 1.959, 2.000 - 1.757);
+      cartGroup.position.x = st.cartShift * Math.cos(cartPsi);
+      cartGroup.position.z = st.cartShift * Math.sin(cartPsi);
       cartWheels.forEach(w => {
-        w.rotation.z = -ev.cartOffset / 0.035;
+        w.rotation.z = -st.cartShift / 0.032;
       });
 
-      // Actualizar tarjetas de telemetría
-      document.getElementById('stageName').textContent = ev.stage;
-      document.getElementById('tTime').textContent = simState.time.toFixed(3) + " s";
-      document.getElementById('tDist').textContent = ev.s.toFixed(2) + " m";
-      document.getElementById('tVel').textContent = ev.v.toFixed(2) + " m/s";
-      document.getElementById('tAcc').textContent = ev.a.toFixed(2) + " m/s²";
-
-      const ek = 0.5 * params.mass * ev.v * ev.v;
-      const wf = params.muk * params.mass * g * ev.s;
-      document.getElementById('tEk').textContent = ek.toFixed(3) + " J";
-      document.getElementById('tWf').textContent = wf.toFixed(3) + " J";
-
-      if (ev.finished && simState.playing) {
-        simState.playing = false;
-        document.getElementById('btnPlayPause').textContent = "▶ Repetir recorrido";
+      if (params.followSuitcase) {
+        controls.target.lerp(wPos, 0.2);
       }
 
-      draw2DView(ev);
+      document.getElementById('hudTime').textContent = `t = ${st.t.toFixed(2)} s`;
+      document.getElementById('hudVel').textContent = `v = ${st.v.toFixed(2)} m/s`;
+      document.getElementById('hudAcc').textContent = `a = ${st.a.toFixed(1)} m/s²`;
+      document.getElementById('hudLat').textContent = `Lateral = ${st.latG.toFixed(1)} g`;
+      document.getElementById('hudStage').textContent = st.stageLabel;
+
+      document.getElementById('valSpeedMag').textContent = st.v.toFixed(2) + " m/s";
+      document.getElementById('valAccTang').textContent = st.a.toFixed(2) + " m/s²";
+      document.getElementById('valVx').textContent = st.vx.toFixed(2) + " m/s";
+      document.getElementById('valVy').textContent = st.vy.toFixed(2) + " m/s";
+      document.getElementById('valAx').textContent = st.ax.toFixed(2) + " m/s²";
+      document.getElementById('valAy').textContent = st.ay.toFixed(2) + " m/s²";
+      document.getElementById('valPosXZ').textContent = `(${(st.pos.x * 100).toFixed(1)}, ${(st.pos.z * 100).toFixed(1)}) cm`;
+      document.getElementById('valPosY').textContent = `${(st.pos.y * 100).toFixed(1)} cm`;
+
+      draw2DPanel(st);
     }
 
     function onResize() {
-      const vp3d = document.getElementById('vp3d');
-      if (vp3d.clientWidth > 0 && vp3d.clientHeight > 0) {
-        camera.aspect = vp3d.clientWidth / vp3d.clientHeight;
+      const p3 = document.getElementById('pane3d');
+      if (p3.clientWidth > 0 && p3.clientHeight > 0) {
+        camera.aspect = p3.clientWidth / p3.clientHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(vp3d.clientWidth, vp3d.clientHeight);
+        renderer.setSize(p3.clientWidth, p3.clientHeight);
       }
-      const vp2d = document.getElementById('vp2d');
-      if (vp2d.clientWidth > 0 && vp2d.clientHeight > 0) {
-        canvas2d.width = vp2d.clientWidth;
-        canvas2d.height = vp2d.clientHeight;
+      const p2 = document.getElementById('pane2d');
+      if (p2.clientWidth > 0 && p2.clientHeight > 0) {
+        canvas2d.width = p2.clientWidth;
+        canvas2d.height = p2.clientHeight;
       }
-      updateVisuals();
+      refreshVisuals();
     }
 
     window.addEventListener('resize', onResize);
 
     // Inicialización
-    buildCart3D();
-    buildTrackModel();
-    rebuildTrack3D();
+    buildScene3D();
+    buildPhysicsModel();
+    setCameraView('iso');
     setTimeout(onResize, 50);
 
-    let lastClock = performance.now();
+    let prevNow = performance.now();
     function animate(now) {
       requestAnimationFrame(animate);
-      const dt = (now - lastClock) / 1000;
-      lastClock = now;
+      const dt = (now - prevNow) / 1000;
+      prevNow = now;
 
-      if (simState.playing && !simState.blockedByStatic) {
-        simState.time += dt * params.timeScale;
-        updateVisuals();
+      if (simClock.playing) {
+        simClock.t += dt * params.timeScale;
+        if (simClock.t >= totalSimTime) {
+          simClock.t = totalSimTime;
+          simClock.playing = false;
+          document.getElementById('btnPlay').textContent = "▶ Reproducir";
+        }
+        refreshVisuals();
       }
 
       controls.update();
